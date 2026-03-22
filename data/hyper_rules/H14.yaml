@@ -1,0 +1,7 @@
+rule_id: H14
+required_fields:
+  - som
+severity: high
+trigger_message: 增长目标缺失或与可服务市场规模不一致，增长假设风险较高。
+probing_question: 你的阶段增长目标是多少？与SOM和渠道产能是否一致？
+fix_task: 补增长目标分解表；验收标准：给出季度目标、渠道贡献占比，并与SOM约束保持一致。

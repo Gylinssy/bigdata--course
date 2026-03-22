@@ -1,0 +1,7 @@
+rule_id: H12
+required_fields:
+  - value_proposition
+severity: medium
+trigger_message: 竞争差异化不足，尚未说明相对替代方案的明确优势或壁垒。
+probing_question: 你的方案相对现有替代方案，在哪三个维度更优且难以被快速复制？
+fix_task: 补一页竞品对比与差异化说明；验收标准：至少3个竞品维度（效果、成本、交付速度）并给出你的优势证据。

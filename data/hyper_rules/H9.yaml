@@ -1,0 +1,7 @@
+﻿rule_id: H9
+required_fields:
+  - problem
+severity: high
+trigger_message: 需求判断缺少验证证据，当前结论更多来自主观假设而不是用户数据。
+probing_question: 你有哪些访谈、问卷、试点、转化或留存数据来支持需求存在？
+fix_task: 补最小需求验证证据；验收标准：至少提供 5 份访谈、1 轮问卷或 1 次试点数据中的任意一种。

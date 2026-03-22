@@ -1,0 +1,9 @@
+rule_id: H4
+required_fields:
+  - tam
+  - sam
+  - som
+severity: high
+trigger_message: TAM、SAM、SOM 必须满足 TAM>=SAM>=SOM。
+probing_question: 你的市场规模拆分依据是什么？每一层是否可由公开数据或假设推导支撑？
+fix_task: 重新计算 TAM、SAM、SOM 并补充计算公式；验收标准：明确数据来源，且满足 TAM>=SAM>=SOM。

@@ -1,0 +1,673 @@
+{
+  "request": {
+    "user_id": "u1",
+    "project_text": "项目名称：护苗AI\n问题：为中学生提供课后心理健康筛查和干预建议。\n客户：中学心理老师与家长。\n价值主张：用低成本 AI 问卷和随访帮助学校发现高风险学生。\n渠道：抖音投流获客。\n收入模式：按学校订阅收费。\n成本结构：教师培训、模型调用、销售团队。\n市场规模：TAM 10000000, SAM 3000000, SOM 500000。\n单位经济：LTV 800, CAC 400。\n补充：会处理学生心理测评数据。",
+    "project_id": "p1"
+  },
+  "state": {
+    "project_name": "护苗AI",
+    "problem": "为中学生提供课后心理健康筛查和干预建议。",
+    "customer_segment": "中学心理老师与家长。",
+    "value_proposition": "用低成本 AI 问卷和随访帮助学校发现高风险学生。",
+    "channel": "抖音投流获客。",
+    "revenue_model": "按学校订阅收费。",
+    "cost_structure": "教师培训、模型调用、销售团队。",
+    "traction": null,
+    "tam": 10000000.0,
+    "sam": 3000000.0,
+    "som": 500000.0,
+    "ltv": 800.0,
+    "cac": 400.0,
+    "compliance_notes": null,
+    "payer": null,
+    "validation_evidence": null,
+    "execution_plan": null,
+    "competitive_advantage": null,
+    "retention_strategy": null,
+    "growth_target": null,
+    "pilot_plan": null
+  },
+  "output": {
+    "current_diagnosis": "H8: 单位经济不足，LTV/CAC=2.00，低于 3。",
+    "evidence_used": [
+      {
+        "source": "extracted_field",
+        "quote": "LTV 800",
+        "start": 174,
+        "end": 181,
+        "field": "ltv",
+        "doc_id": null,
+        "page_no": null,
+        "chunk_id": null
+      },
+      {
+        "source": "extracted_field",
+        "quote": "CAC 400",
+        "start": 183,
+        "end": 190,
+        "field": "cac",
+        "doc_id": null,
+        "page_no": null,
+        "chunk_id": null
+      },
+      {
+        "source": "case_pdf",
+        "quote": "第十九届“挑战杯”全国大学生课外学术科技作品竞赛参赛作品 50 间实测显示，该技术使杂草灭杀率达97%以上，且对作物幼苗的误伤率<0.7%， 显著优于传统机械除草的15%-30%误伤率。 在实时决策方面，项目团队采用神经架构搜索(NAS)与知识蒸馏技术，从 大型ResNet网络中优化出轻量化子网络，模型大小仅为原SAM网络的1.2%，推 理速度提升3倍，满足机器人在行进中实时处理图像的需求。通过模型量化技术 将浮点运算转换为整形计算，在保持检测精度仅降低0.01%的前提下，大",
+        "start": null,
+        "end": null,
+        "field": null,
+        "doc_id": "482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64",
+        "page_no": 57,
+        "chunk_id": "482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64-p57-c1"
+      },
+      {
+        "source": "case_pdf",
+        "quote": "第十九届“挑战杯”全国大学生课外学术科技作品竞赛参赛作品 3.3.4 实验流程与方法 ........................................ 23 3.3.5 实验结果与分析........................................ 23 3.4 本章小结 ................................................... 25 第四章 靶向化杂草生长点激光定位技术原理............",
+        "start": null,
+        "end": null,
+        "field": null,
+        "doc_id": "482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64",
+        "page_no": 6,
+        "chunk_id": "482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64-p6-c1"
+      },
+      {
+        "source": "case_pdf",
+        "quote": "的多光谱数据集，结合深度神经网络实现像素 级语义分割，并引入注意力机制与跨层特征融合技术，使模型在强曝光下的平 均检测精度达99.7%，相较YOLOv12x、YOLOv8x显著提升，解决漏检与误检 问题；而为提升激光打击的定位精度，本文引入关键点检测与热图建模方法， 通过以生长点为中心构建高斯热图，并使用CNN进行亚像素级定位，实现 <0.1mm的精度控制，误伤率低于0.7%，远优于传统机械方式的15%-30%，田间 灭杀率超过97%；此外，为满足实时处理需求，本文结合神经架",
+        "start": null,
+        "end": null,
+        "field": null,
+        "doc_id": "482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64",
+        "page_no": 14,
+        "chunk_id": "482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64-p14-c2"
+      },
+      {
+        "source": "extracted_field",
+        "quote": "项目名称：护苗AI",
+        "start": 0,
+        "end": 9,
+        "field": "project_name",
+        "doc_id": null,
+        "page_no": null,
+        "chunk_id": null
+      },
+      {
+        "source": "extracted_field",
+        "quote": "问题：为中学生提供课后心理健康筛查和干预建议。",
+        "start": 10,
+        "end": 33,
+        "field": "problem",
+        "doc_id": null,
+        "page_no": null,
+        "chunk_id": null
+      }
+    ],
+    "impact": "单位经济不足，LTV/CAC=2.00，低于 3。 类似问题在案例库中也出现过，若不修正会直接拖累验证效率和落地风险。",
+    "next_task": "重算 LTV 与 CAC，并明确成本口径；验收标准：给出公式和样本假设，且 LTV>=3*CAC。",
+    "rubric_scores": [
+      {
+        "rubric_id": "R1",
+        "name": "Problem Clarity",
+        "score": 3,
+        "rationale": "问题定义清晰且有验证证据时，项目方向更可靠。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "问题：为中学生提供课后心理健康筛查和干预建议。",
+            "start": 10,
+            "end": 33,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：用低成本 AI 问卷和随访帮助学校发现高风险学生。",
+            "start": 48,
+            "end": 78,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "客户：中学心理老师与家长。",
+            "start": 34,
+            "end": 47,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R2",
+        "name": "Value Delivery",
+        "score": 2,
+        "rationale": "客户、渠道、付费链和竞争差异共同决定价值交付是否成立。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "客户：中学心理老师与家长。",
+            "start": 34,
+            "end": 47,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：用低成本 AI 问卷和随访帮助学校发现高风险学生。",
+            "start": 48,
+            "end": 78,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "渠道：抖音投流获客。",
+            "start": 79,
+            "end": 89,
+            "field": "channel",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "收入模式：按学校订阅收费。",
+            "start": 90,
+            "end": 103,
+            "field": "revenue_model",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R3",
+        "name": "Market Logic",
+        "score": 2,
+        "rationale": "市场规模与增长目标必须同时可计算且相互一致。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "TAM 10000000",
+            "start": 130,
+            "end": 142,
+            "field": "tam",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "SAM 3000000",
+            "start": 144,
+            "end": 155,
+            "field": "sam",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "SOM 500000",
+            "start": 157,
+            "end": 167,
+            "field": "som",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "渠道：抖音投流获客。",
+            "start": 79,
+            "end": 89,
+            "field": "channel",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R4",
+        "name": "Unit Economics",
+        "score": 2,
+        "rationale": "单位经济与留存机制共同决定增长是否健康可持续。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "LTV 800",
+            "start": 174,
+            "end": 181,
+            "field": "ltv",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "CAC 400",
+            "start": 183,
+            "end": 190,
+            "field": "cac",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "收入模式：按学校订阅收费。",
+            "start": 90,
+            "end": 103,
+            "field": "revenue_model",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R5",
+        "name": "Risk Readiness",
+        "score": 1,
+        "rationale": "执行路径、试点计划和合规准备度共同影响真实落地风险。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "成本结构：教师培训、模型调用、销售团队。",
+            "start": 104,
+            "end": 124,
+            "field": "cost_structure",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "问题：为中学生提供课后心理健康筛查和干预建议。",
+            "start": 10,
+            "end": 33,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "客户：中学心理老师与家长。",
+            "start": 34,
+            "end": 47,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      }
+    ],
+    "detected_rules": [
+      {
+        "rule_id": "H1",
+        "status": "pass",
+        "severity": "medium",
+        "message": "客户、价值主张与渠道链路基本完整。",
+        "probing_question": "你的目标客户最常出现在哪个渠道？他们愿意为哪一个结果买单？",
+        "fix_task": "访谈 5 位目标客户，并把客户画像、核心痛点、对应渠道写成 1 张三列表；验收标准：每列至少 5 条、能一一对应。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "客户：中学心理老师与家长。",
+            "start": 34,
+            "end": 47,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：用低成本 AI 问卷和随访帮助学校发现高风险学生。",
+            "start": 48,
+            "end": 78,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "渠道：抖音投流获客。",
+            "start": 79,
+            "end": 89,
+            "field": "channel",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H2",
+        "status": "warning",
+        "severity": "medium",
+        "message": "问题定义与方案描述几乎没有关键词重合，需警惕方案没有直接回应痛点。",
+        "probing_question": "你的方案具体消除了哪个痛点？用户在使用前后会发生什么变化？",
+        "fix_task": "补一张“痛点-方案-结果”对照表；验收标准：至少列出 3 个痛点，每个痛点对应 1 个方案动作和 1 个可观察结果。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "问题：为中学生提供课后心理健康筛查和干预建议。",
+            "start": 10,
+            "end": 33,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：用低成本 AI 问卷和随访帮助学校发现高风险学生。",
+            "start": 48,
+            "end": 78,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H4",
+        "status": "pass",
+        "severity": "high",
+        "message": "TAM/SAM/SOM 逻辑成立。",
+        "probing_question": "你的市场规模拆分依据是什么？每一层是否可由公开数据或假设推导支撑？",
+        "fix_task": "重新计算 TAM、SAM、SOM 并补充计算公式；验收标准：明确数据来源，且满足 TAM>=SAM>=SOM。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "TAM 10000000",
+            "start": 130,
+            "end": 142,
+            "field": "tam",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "SAM 3000000",
+            "start": 144,
+            "end": 155,
+            "field": "sam",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "SOM 500000",
+            "start": 157,
+            "end": 167,
+            "field": "som",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H5",
+        "status": "warning",
+        "severity": "medium",
+        "message": "看起来存在使用者与付费者分离，但没有明确说明谁来付费和谁做决策。",
+        "probing_question": "谁在使用、谁从中受益、谁真正付费、谁做购买决策？",
+        "fix_task": "补一页“使用者-受益者-付费者-决策者”关系图；验收标准：四类角色明确，且与收入模式一致。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "客户：中学心理老师与家长。",
+            "start": 34,
+            "end": 47,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "收入模式：按学校订阅收费。",
+            "start": 90,
+            "end": 103,
+            "field": "revenue_model",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H8",
+        "status": "fail",
+        "severity": "high",
+        "message": "单位经济不足，LTV/CAC=2.00，低于 3。",
+        "probing_question": "你的获客成本包含哪些渠道支出？用户生命周期价值是如何估算的？",
+        "fix_task": "重算 LTV 与 CAC，并明确成本口径；验收标准：给出公式和样本假设，且 LTV>=3*CAC。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "LTV 800",
+            "start": 174,
+            "end": 181,
+            "field": "ltv",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "CAC 400",
+            "start": 183,
+            "end": 190,
+            "field": "cac",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H9",
+        "status": "warning",
+        "severity": "high",
+        "message": "已有少量验证信号，但证据仍偏弱，建议补更明确的用户验证数据。",
+        "probing_question": "你有哪些访谈、问卷、试点、转化或留存数据来支持需求存在？",
+        "fix_task": "补最小需求验证证据；验收标准：至少提供 5 份访谈、1 轮问卷或 1 次试点数据中的任意一种。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "问题：为中学生提供课后心理健康筛查和干预建议。",
+            "start": 10,
+            "end": 33,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H10",
+        "status": "fail",
+        "severity": "high",
+        "message": "没有执行计划或阶段进展描述，方案落地路径不清晰。",
+        "probing_question": "这个方案由谁来做、分几步做、每一步何时完成、首个可交付版本是什么？",
+        "fix_task": "补执行计划与版本路径；验收标准：明确负责人、时间节点、里程碑和首版范围四项。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "成本结构：教师培训、模型调用、销售团队。",
+            "start": 104,
+            "end": 124,
+            "field": "cost_structure",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H11",
+        "status": "high_risk",
+        "severity": "high",
+        "message": "命中敏感领域关键词 ['健康', '学生', '心理']，但未看到合规说明。",
+        "probing_question": "涉及的数据、用户与决策风险分别是什么？你准备如何合规处理？",
+        "fix_task": "补一页合规与伦理说明；验收标准：覆盖数据来源、用户授权、风险边界、责任人四项。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "问题：为中学生提供课后心理健康筛查和干预建议。",
+            "start": 10,
+            "end": 33,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "客户：中学心理老师与家长。",
+            "start": 34,
+            "end": 47,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H12",
+        "status": "fail",
+        "severity": "medium",
+        "message": "没有看到清晰的竞品对比或差异化说明，竞争优势不明确。",
+        "probing_question": "你的方案相对现有替代方案，在哪三个维度更优且难以被快速复制？",
+        "fix_task": "补一页竞品对比与差异化说明；验收标准：至少3个竞品维度（效果、成本、交付速度）并给出你的优势证据。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：用低成本 AI 问卷和随访帮助学校发现高风险学生。",
+            "start": 48,
+            "end": 78,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H13",
+        "status": "warning",
+        "severity": "medium",
+        "message": "留存机制描述较弱，建议补明确的留存目标与触发机制。",
+        "probing_question": "用户为什么会持续使用或重复付费？你的留存机制和触发频率是什么？",
+        "fix_task": "补留存机制设计；验收标准：明确留存触发点、周期、目标留存率三个要素。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "收入模式：按学校订阅收费。",
+            "start": 90,
+            "end": 103,
+            "field": "revenue_model",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H14",
+        "status": "fail",
+        "severity": "high",
+        "message": "未提供阶段增长目标，无法校验增长假设是否可行。",
+        "probing_question": "你的阶段增长目标是多少？与SOM和渠道产能是否一致？",
+        "fix_task": "补增长目标分解表；验收标准：给出季度目标、渠道贡献占比，并与SOM约束保持一致。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "SOM 500000",
+            "start": 157,
+            "end": 167,
+            "field": "som",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "渠道：抖音投流获客。",
+            "start": 79,
+            "end": 89,
+            "field": "channel",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H15",
+        "status": "fail",
+        "severity": "high",
+        "message": "试点路径不明确，缺少首批对象、进入路径或验收节奏。",
+        "probing_question": "第一批试点对象是谁？通过什么路径进入？多长时间判断成败？",
+        "fix_task": "补试点落地计划；验收标准：明确试点对象、启动时间、关键指标、退出条件四项。",
+        "evidence": []
+      }
+    ],
+    "retrieved_case_evidence": [
+      {
+        "source": "case_pdf",
+        "quote": "第十九届“挑战杯”全国大学生课外学术科技作品竞赛参赛作品 50 间实测显示，该技术使杂草灭杀率达97%以上，且对作物幼苗的误伤率<0.7%， 显著优于传统机械除草的15%-30%误伤率。 在实时决策方面，项目团队采用神经架构搜索(NAS)与知识蒸馏技术，从 大型ResNet网络中优化出轻量化子网络，模型大小仅为原SAM网络的1.2%，推 理速度提升3倍，满足机器人在行进中实时处理图像的需求。通过模型量化技术 将浮点运算转换为整形计算，在保持检测精度仅降低0.01%的前提下，大",
+        "start": null,
+        "end": null,
+        "field": null,
+        "doc_id": "482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64",
+        "page_no": 57,
+        "chunk_id": "482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64-p57-c1"
+      },
+      {
+        "source": "case_pdf",
+        "quote": "第十九届“挑战杯”全国大学生课外学术科技作品竞赛参赛作品 3.3.4 实验流程与方法 ........................................ 23 3.3.5 实验结果与分析........................................ 23 3.4 本章小结 ................................................... 25 第四章 靶向化杂草生长点激光定位技术原理............",
+        "start": null,
+        "end": null,
+        "field": null,
+        "doc_id": "482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64",
+        "page_no": 6,
+        "chunk_id": "482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64-p6-c1"
+      },
+      {
+        "source": "case_pdf",
+        "quote": "的多光谱数据集，结合深度神经网络实现像素 级语义分割，并引入注意力机制与跨层特征融合技术，使模型在强曝光下的平 均检测精度达99.7%，相较YOLOv12x、YOLOv8x显著提升，解决漏检与误检 问题；而为提升激光打击的定位精度，本文引入关键点检测与热图建模方法， 通过以生长点为中心构建高斯热图，并使用CNN进行亚像素级定位，实现 <0.1mm的精度控制，误伤率低于0.7%，远优于传统机械方式的15%-30%，田间 灭杀率超过97%；此外，为满足实时处理需求，本文结合神经架",
+        "start": null,
+        "end": null,
+        "field": null,
+        "doc_id": "482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64",
+        "page_no": 14,
+        "chunk_id": "482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64-p14-c2"
+      }
+    ],
+    "markdown_report": "## Current Diagnosis\nH8: 单位经济不足，LTV/CAC=2.00，低于 3。\n\n## Evidence Used\n- ltv: LTV 800\n- cac: CAC 400\n- [case: 482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64 p.57] \"第十九届“挑战杯”全国大学生课外学术科技作品竞赛参赛作品 50 间实测显示，该技术使杂草灭杀率达97%以上，且对作物幼苗的误伤率<0.7%， 显著优于传统机械除草的15%-30%误伤率。 在实时决策方面，项目团队采用神经架构搜索(NAS)与知识蒸馏技术，从 大型ResNet网络中优化出轻量化子网络，模型大小仅为原SAM网络的1.2%，推 理速度提升3倍，满足机器人在行进中实时处理图像的需求。通过模型量化技术 将浮点运算转换为整形计算，在保持检测精度仅降低0.01%的前提下，大\"\n- [case: 482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64 p.6] \"第十九届“挑战杯”全国大学生课外学术科技作品竞赛参赛作品 3.3.4 实验流程与方法 ........................................ 23 3.3.5 实验结果与分析........................................ 23 3.4 本章小结 ................................................... 25 第四章 靶向化杂草生长点激光定位技术原理............\"\n- [case: 482816-禾光智能--精准制导_机器人系统-论文_调研报告-cb00df64 p.14] \"的多光谱数据集，结合深度神经网络实现像素 级语义分割，并引入注意力机制与跨层特征融合技术，使模型在强曝光下的平 均检测精度达99.7%，相较YOLOv12x、YOLOv8x显著提升，解决漏检与误检 问题；而为提升激光打击的定位精度，本文引入关键点检测与热图建模方法， 通过以生长点为中心构建高斯热图，并使用CNN进行亚像素级定位，实现 <0.1mm的精度控制，误伤率低于0.7%，远优于传统机械方式的15%-30%，田间 灭杀率超过97%；此外，为满足实时处理需求，本文结合神经架\"\n- project_name: 项目名称：护苗AI\n- problem: 问题：为中学生提供课后心理健康筛查和干预建议。\n\n## Impact\n单位经济不足，LTV/CAC=2.00，低于 3。 类似问题在案例库中也出现过，若不修正会直接拖累验证效率和落地风险。\n\n## Next Task\n重算 LTV 与 CAC，并明确成本口径；验收标准：给出公式和样本假设，且 LTV>=3*CAC。\n\n## Triggered Rules\n- H1: pass / medium / 客户、价值主张与渠道链路基本完整。\n- H2: warning / medium / 问题定义与方案描述几乎没有关键词重合，需警惕方案没有直接回应痛点。\n- H4: pass / high / TAM/SAM/SOM 逻辑成立。\n- H5: warning / medium / 看起来存在使用者与付费者分离，但没有明确说明谁来付费和谁做决策。\n- H8: fail / high / 单位经济不足，LTV/CAC=2.00，低于 3。\n- H9: warning / high / 已有少量验证信号，但证据仍偏弱，建议补更明确的用户验证数据。\n- H10: fail / high / 没有执行计划或阶段进展描述，方案落地路径不清晰。\n- H11: high_risk / high / 命中敏感领域关键词 ['健康', '学生', '心理']，但未看到合规说明。\n- H12: fail / medium / 没有看到清晰的竞品对比或差异化说明，竞争优势不明确。\n- H13: warning / medium / 留存机制描述较弱，建议补明确的留存目标与触发机制。\n- H14: fail / high / 未提供阶段增长目标，无法校验增长假设是否可行。\n- H15: fail / high / 试点路径不明确，缺少首批对象、进入路径或验收节奏。\n\n## Rubric Scores\n- R1 Problem Clarity: 3/5 (问题定义清晰且有验证证据时，项目方向更可靠。)\n- R2 Value Delivery: 2/5 (客户、渠道、付费链和竞争差异共同决定价值交付是否成立。)\n- R3 Market Logic: 2/5 (市场规模与增长目标必须同时可计算且相互一致。)\n- R4 Unit Economics: 2/5 (单位经济与留存机制共同决定增长是否健康可持续。)\n- R5 Risk Readiness: 1/5 (执行路径、试点计划和合规准备度共同影响真实落地风险。)"
+  }
+}

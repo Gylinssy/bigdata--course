@@ -1,0 +1,8 @@
+rule_id: H8
+required_fields:
+  - ltv
+  - cac
+severity: high
+trigger_message: 单位经济不成立，通常要求 LTV>=3*CAC。
+probing_question: 你的获客成本包含哪些渠道支出？用户生命周期价值是如何估算的？
+fix_task: 重算 LTV 与 CAC，并明确成本口径；验收标准：给出公式和样本假设，且 LTV>=3*CAC。

@@ -1,0 +1,9 @@
+rule_id: H1
+required_fields:
+  - customer_segment
+  - value_proposition
+  - channel
+severity: medium
+trigger_message: 客户、价值主张与渠道之间存在错位或信息不足。
+probing_question: 你的目标客户最常出现在哪个渠道？他们愿意为哪一个结果买单？
+fix_task: 访谈 5 位目标客户，并把客户画像、核心痛点、对应渠道写成 1 张三列表；验收标准：每列至少 5 条、能一一对应。

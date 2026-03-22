@@ -1,0 +1,7 @@
+rule_id: H15
+required_fields:
+  - value_proposition
+severity: high
+trigger_message: 试点路径不清晰，缺少首批试点对象、进入方式和验证节奏。
+probing_question: 第一批试点对象是谁？通过什么路径进入？多长时间判断成败？
+fix_task: 补试点落地计划；验收标准：明确试点对象、启动时间、关键指标、退出条件四项。

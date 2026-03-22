@@ -1,0 +1,8 @@
+﻿rule_id: H5
+required_fields:
+  - customer_segment
+  - revenue_model
+severity: medium
+trigger_message: 使用者、受益者与付费者可能不是同一方，但当前付费逻辑没有说明清楚。
+probing_question: 谁在使用、谁从中受益、谁真正付费、谁做购买决策？
+fix_task: 补一页“使用者-受益者-付费者-决策者”关系图；验收标准：四类角色明确，且与收入模式一致。

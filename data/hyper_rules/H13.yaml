@@ -1,0 +1,7 @@
+rule_id: H13
+required_fields:
+  - revenue_model
+severity: medium
+trigger_message: 缺少留存或复购机制说明，增长可能依赖一次性获客。
+probing_question: 用户为什么会持续使用或重复付费？你的留存机制和触发频率是什么？
+fix_task: 补留存机制设计；验收标准：明确留存触发点、周期、目标留存率三个要素。

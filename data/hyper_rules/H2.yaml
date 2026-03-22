@@ -1,0 +1,8 @@
+﻿rule_id: H2
+required_fields:
+  - problem
+  - value_proposition
+severity: medium
+trigger_message: 问题定义与解决方案之间存在错位，方案没有直接回应核心痛点。
+probing_question: 你的方案具体消除了哪个痛点？用户在使用前后会发生什么变化？
+fix_task: 补一张“痛点-方案-结果”对照表；验收标准：至少列出 3 个痛点，每个痛点对应 1 个方案动作和 1 个可观察结果。

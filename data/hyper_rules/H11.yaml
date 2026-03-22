@@ -1,0 +1,8 @@
+rule_id: H11
+required_fields:
+  - problem
+  - customer_segment
+severity: high
+trigger_message: 项目命中敏感领域，但缺少合规或伦理说明。
+probing_question: 涉及的数据、用户与决策风险分别是什么？你准备如何合规处理？
+fix_task: 补一页合规与伦理说明；验收标准：覆盖数据来源、用户授权、风险边界、责任人四项。

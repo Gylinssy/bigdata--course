@@ -1,0 +1,7 @@
+﻿rule_id: H10
+required_fields:
+  - value_proposition
+severity: high
+trigger_message: 方案看起来可做，但执行路径、资源分工或里程碑不足，落地风险较高。
+probing_question: 这个方案由谁来做、分几步做、每一步何时完成、首个可交付版本是什么？
+fix_task: 补执行计划与版本路径；验收标准：明确负责人、时间节点、里程碑和首版范围四项。

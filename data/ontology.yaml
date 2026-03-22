@@ -1,0 +1,22 @@
+project_fields:
+  - project_name
+  - problem
+  - customer_segment
+  - value_proposition
+  - channel
+  - revenue_model
+  - cost_structure
+  - traction
+  - tam
+  - sam
+  - som
+  - ltv
+  - cac
+  - compliance_notes
+
+sensitive_domains:
+  - 医疗
+  - 金融
+  - 未成年人
+  - 隐私
+  - 教育

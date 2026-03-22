@@ -1,0 +1,16 @@
+rubrics:
+  - rubric_id: R1
+    name: Problem Clarity
+    description: Problem and customer segment are concrete and well linked.
+  - rubric_id: R2
+    name: Value Delivery
+    description: Value proposition and channel fit the target segment.
+  - rubric_id: R3
+    name: Market Logic
+    description: TAM, SAM, and SOM are present and logically ordered.
+  - rubric_id: R4
+    name: Unit Economics
+    description: LTV and CAC support a viable growth loop.
+  - rubric_id: R5
+    name: Risk Readiness
+    description: Compliance and sensitive-domain risks are addressed.
