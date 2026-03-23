@@ -394,79 +394,104 @@ def compute_capability_profile(messages: list[dict]) -> dict:
 
 
 def render_login_page() -> None:
-    st.markdown('<div class="login-shell"><div class="login-card">', unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div class="login-title">登录或注册</div>
-        <div class="login-copy">
-          未登录用户不能访问核心页面。当前提供本地 mock 登录与注册，后续可直接替换为正式鉴权。
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="login-shell">', unsafe_allow_html=True)
+    hero_col, panel_col = st.columns([1.34, 0.9], gap="large")
 
-    login_col, register_col = st.columns(2)
-    if login_col.button("登录", key="auth_view_login", use_container_width=True, type="primary"):
-        st.session_state["auth_view"] = "login"
-        st.rerun()
-    if register_col.button("注册", key="auth_view_register", use_container_width=True, type="secondary"):
-        st.session_state["auth_view"] = "register"
-        st.rerun()
-
-    if st.session_state.get("auth_view") == "register":
-        register_role = st.selectbox("注册角色", ["student", "teacher"], format_func=lambda item: "学生" if item == "student" else "教师")
-        with st.form("register_form"):
-            display_name = st.text_input("显示名称", placeholder="例如：张同学 / 李老师")
-            username = st.text_input("新用户名", placeholder="至少 3 位")
-            password = st.text_input("新密码", type="password", placeholder="至少 6 位")
-            confirm_password = st.text_input("确认密码", type="password")
-            submitted = st.form_submit_button("注册并登录", use_container_width=True, type="primary")
-        if submitted:
-            if password != confirm_password:
-                st.error("两次输入的密码不一致。")
-            else:
-                ok, message, user = register_user(
-                    st.session_state,
-                    username=username,
-                    password=password,
-                    role=register_role,
-                    display_name=display_name,
-                )
-                if ok and user:
-                    login_user(st.session_state, user)
-                    st.rerun()
-                st.error(message)
-    else:
-        role = st.selectbox(
-            "角色",
-            ["student", "teacher", "admin"],
-            format_func=lambda item: {"student": "学生", "teacher": "教师", "admin": "管理员"}[item],
-        )
-        default_user = {"student": "student", "teacher": "teacher", "admin": "admin"}[role]
-        default_pwd = {"student": "student123", "teacher": "teacher123", "admin": "admin123"}[role]
-        with st.form("login_form"):
-            username = st.text_input("用户名", value=default_user)
-            password = st.text_input("密码", value=default_pwd, type="password")
-            submitted = st.form_submit_button("进入系统", use_container_width=True, type="primary")
+    with hero_col:
         st.markdown(
             """
-            <div class="login-note">
-              默认账号：<br/>
-              student / student123<br/>
-              teacher / teacher123<br/>
-              admin / admin123
+            <div class="auth-copy">
+              <div class="auth-kicker">Unified Workflow</div>
+              <h1 class="auth-title">把诊断、追问与评分<br/>放进同一条<br/>工作流里。</h1>
+              <div class="auth-subtitle">
+                学生先提交项目草案，系统完成初步诊断、规则校验与路演评分；教师再基于同一条证据链查看班级风险、批改结果和干预策略。
+              </div>
+              <div class="auth-visual">
+                <div class="auth-visual-content">
+                  <div class="auth-ribbon">学生诊断 → 教师洞察 → 管理配置</div>
+                  <div class="auth-scene-line">初步诊断：渠道与目标用户存在错位，建议先补第一批真实访谈与转化证据。</div>
+                  <div class="auth-scene-line alt">教师端已同步看到规则命中、评分缺口和下一步唯一任务。</div>
+                </div>
+              </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        if submitted:
-            user = authenticate(st.session_state, username=username, password=password, role=role)
-            if user:
-                login_user(st.session_state, user)
-                st.rerun()
-            st.error("用户名、密码或角色不匹配。")
 
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    with panel_col:
+        st.markdown('<div class="login-panel-scope"></div>', unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="login-title">登录或注册</div>
+            <div class="login-copy">
+              未登录用户不能访问核心页面。当前先使用本地 mock 认证，后续可直接替换为正式鉴权。
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        login_col, register_col = st.columns(2)
+        if login_col.button("登录", key="auth_view_login", use_container_width=True, type="primary"):
+            st.session_state["auth_view"] = "login"
+            st.rerun()
+        if register_col.button("注册", key="auth_view_register", use_container_width=True, type="secondary"):
+            st.session_state["auth_view"] = "register"
+            st.rerun()
+
+        if st.session_state.get("auth_view") == "register":
+            register_role = st.selectbox("注册角色", ["student", "teacher"], format_func=lambda item: "学生" if item == "student" else "教师")
+            with st.form("register_form"):
+                display_name = st.text_input("显示名称", placeholder="例如：张同学 / 李老师")
+                username = st.text_input("新用户名", placeholder="至少 3 位")
+                password = st.text_input("新密码", type="password", placeholder="至少 6 位")
+                confirm_password = st.text_input("确认密码", type="password")
+                submitted = st.form_submit_button("注册并登录", use_container_width=True, type="primary")
+            if submitted:
+                if password != confirm_password:
+                    st.error("两次输入的密码不一致。")
+                else:
+                    ok, message, user = register_user(
+                        st.session_state,
+                        username=username,
+                        password=password,
+                        role=register_role,
+                        display_name=display_name,
+                    )
+                    if ok and user:
+                        login_user(st.session_state, user)
+                        st.rerun()
+                    st.error(message)
+        else:
+            role = st.selectbox(
+                "角色",
+                ["student", "teacher", "admin"],
+                format_func=lambda item: {"student": "学生", "teacher": "教师", "admin": "管理员"}[item],
+            )
+            default_user = {"student": "student", "teacher": "teacher", "admin": "admin"}[role]
+            default_pwd = {"student": "student123", "teacher": "teacher123", "admin": "admin123"}[role]
+            with st.form("login_form"):
+                username = st.text_input("用户名", value=default_user)
+                password = st.text_input("密码", value=default_pwd, type="password")
+                submitted = st.form_submit_button("进入系统", use_container_width=True, type="primary")
+            st.markdown(
+                """
+                <div class="login-note">
+                  默认账号：<br/>
+                  student / student123<br/>
+                  teacher / teacher123<br/>
+                  admin / admin123
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            if submitted:
+                user = authenticate(st.session_state, username=username, password=password, role=role)
+                if user:
+                    login_user(st.session_state, user)
+                    st.rerun()
+                st.error("用户名、密码或角色不匹配。")
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_sidebar() -> None:
@@ -564,7 +589,6 @@ def render_student_diagnosis_panel() -> None:
 
     left_col, right_col = st.columns([1.42, 0.88])
     with left_col:
-        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
         st.markdown('<div class="surface-title">项目输入</div>', unsafe_allow_html=True)
         selected_example = st.selectbox("载入示例", example_labels, index=0, key="student_example")
         default_text = ""
@@ -578,7 +602,6 @@ def render_student_diagnosis_panel() -> None:
             project_id = st.text_input("项目编号", value=default_project_id)
             project_text = st.text_area("项目文本", value=default_text, height=260, placeholder="粘贴项目描述")
             submitted = st.form_submit_button("生成初步诊断", use_container_width=True, type="primary")
-        st.markdown("</div>", unsafe_allow_html=True)
 
         if submitted:
             blocked_message = detect_invalid_project_text(project_text)
@@ -864,7 +887,6 @@ def render_student_chat_panel() -> None:
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="surface-card">', unsafe_allow_html=True)
     mode_col, context_col, source_col = st.columns([1, 1, 1.2])
     mode = mode_col.selectbox("模式", ["general", "reasoning"], index=0)
     include_context = context_col.checkbox("附带项目上下文", value=bool(last_project_id or archives))
@@ -926,8 +948,6 @@ def render_student_chat_panel() -> None:
             delete_chat_session(active_session["id"])
             st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)
-
 
 def render_teacher_page() -> None:
     records, using_mock = load_records_or_mock(PROJECT_ARCHIVE_DIR)
@@ -964,17 +984,12 @@ def render_teacher_page() -> None:
     with overview_tab:
         left_col, right_col = st.columns(2)
         with left_col:
-            st.markdown('<div class="surface-card">', unsafe_allow_html=True)
             st.markdown('<div class="surface-title">平均 Rubric 评分</div>', unsafe_allow_html=True)
             render_score_bar_chart(avg_scores, y_key="average_score")
-            st.markdown("</div>", unsafe_allow_html=True)
         with right_col:
-            st.markdown('<div class="surface-card">', unsafe_allow_html=True)
             st.markdown('<div class="surface-title">规则触发分布</div>', unsafe_allow_html=True)
             render_rule_bar_chart(rule_rows)
-            st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
         st.markdown('<div class="surface-title">A6-2 班级洞察</div>', unsafe_allow_html=True)
         top5 = rule_rows[:5]
         coverage = {
@@ -1010,7 +1025,6 @@ def render_teacher_page() -> None:
                 "rule_trigger_frequency": rule_frequency,
             }
         )
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with score_tab:
         chart_col, info_col = st.columns([1.15, 0.85])
