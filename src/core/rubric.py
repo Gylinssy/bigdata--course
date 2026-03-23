@@ -7,6 +7,46 @@ import yaml
 from .models import EvidenceItem, ProjectState, RubricScore, RuleResult, RuleStatus
 
 
+RUBRIC_RULE_MAP: dict[str, list[str]] = {
+    "R1": ["H2", "H9", "H17"],
+    "R2": ["H1", "H16"],
+    "R3": ["H2", "H17"],
+    "R4": ["H12", "H18"],
+    "R5": ["H5", "H19"],
+    "R6": ["H8", "H20"],
+    "R7": ["H10", "H15", "H23"],
+    "R8": ["H11", "H21"],
+    "R9": ["H9", "H22"],
+    "R10": ["H13", "H14", "H23"],
+}
+
+RUBRIC_FIELD_MAP: dict[str, list[str]] = {
+    "R1": ["problem", "customer_segment", "validation_evidence"],
+    "R2": ["customer_segment", "channel", "validation_evidence"],
+    "R3": ["problem", "value_proposition"],
+    "R4": ["competitive_advantage", "customer_segment"],
+    "R5": ["revenue_model", "payer", "cost_structure"],
+    "R6": ["ltv", "cac", "cost_structure"],
+    "R7": ["execution_plan", "pilot_plan", "traction"],
+    "R8": ["compliance_notes", "value_proposition"],
+    "R9": ["validation_evidence", "traction"],
+    "R10": ["growth_target", "som", "execution_plan"],
+}
+
+RUBRIC_RATIONALE: dict[str, str] = {
+    "R1": "问题定义与用户画像越清晰，越容易形成有效验证闭环。",
+    "R2": "渠道和人群匹配决定获客效率与预算利用率。",
+    "R3": "价值主张必须直接映射痛点，且具备可量化改善目标。",
+    "R4": "竞争认知与护城河建设决定项目长期防御能力。",
+    "R5": "收入结构与付费角色需要形成可解释的商业闭环。",
+    "R6": "单位经济与成本覆盖能力决定项目是否可持续。",
+    "R7": "执行与试点计划需要与团队资源规模相匹配。",
+    "R8": "敏感场景中的合规和伦理边界决定项目上线风险。",
+    "R9": "核心结论必须由可追溯证据支撑，避免主观幻觉。",
+    "R10": "增长目标必须与市场空间、节奏与资源约束一致。",
+}
+
+
 class RubricScorer:
     def __init__(self, rubric_path: Path | str = Path("data/rubric.yaml")) -> None:
         self.rubrics = yaml.safe_load(Path(rubric_path).read_text(encoding="utf-8"))["rubrics"]
@@ -20,55 +60,31 @@ class RubricScorer:
         rule_map = {rule.rule_id: rule for rule in rules}
         evidence_map = {item.field: item for item in evidence if item.field}
 
-        r1_score = self._compose_score(rule_map, ["H2", "H9"], base=self._presence_score(state.problem, state.customer_segment))
-        r2_score = self._compose_score(rule_map, ["H1", "H5", "H12"], base=4)
-        r3_score = self._compose_score(rule_map, ["H4", "H14"], base=4)
-        r4_score = self._compose_score(rule_map, ["H8", "H13"], base=4)
-        r5_score = self._compose_score(rule_map, ["H10", "H11", "H15"], base=4)
-
-        return [
-            RubricScore(
-                rubric_id="R1",
-                name=self._name("R1"),
-                score=r1_score,
-                rationale="问题定义清晰且有验证证据时，项目方向更可靠。",
-                evidence=self._collect_rubric_evidence(rule_map, evidence_map, ["H2", "H9"], ["problem", "customer_segment", "validation_evidence"]),
-            ),
-            RubricScore(
-                rubric_id="R2",
-                name=self._name("R2"),
-                score=r2_score,
-                rationale="客户、渠道、付费链和竞争差异共同决定价值交付是否成立。",
-                evidence=self._collect_rubric_evidence(rule_map, evidence_map, ["H1", "H5", "H12"], ["customer_segment", "value_proposition", "channel", "payer", "competitive_advantage"]),
-            ),
-            RubricScore(
-                rubric_id="R3",
-                name=self._name("R3"),
-                score=r3_score,
-                rationale="市场规模与增长目标必须同时可计算且相互一致。",
-                evidence=self._collect_rubric_evidence(rule_map, evidence_map, ["H4", "H14"], ["tam", "sam", "som", "growth_target"]),
-            ),
-            RubricScore(
-                rubric_id="R4",
-                name=self._name("R4"),
-                score=r4_score,
-                rationale="单位经济与留存机制共同决定增长是否健康可持续。",
-                evidence=self._collect_rubric_evidence(rule_map, evidence_map, ["H8", "H13"], ["ltv", "cac", "retention_strategy"]),
-            ),
-            RubricScore(
-                rubric_id="R5",
-                name=self._name("R5"),
-                score=r5_score,
-                rationale="执行路径、试点计划和合规准备度共同影响真实落地风险。",
-                evidence=self._collect_rubric_evidence(rule_map, evidence_map, ["H10", "H11", "H15"], ["execution_plan", "pilot_plan", "compliance_notes"]),
-            ),
-        ]
-
-    def _name(self, rubric_id: str) -> str:
+        scores: list[RubricScore] = []
         for rubric in self.rubrics:
-            if rubric["rubric_id"] == rubric_id:
-                return rubric["name"]
-        return rubric_id
+            rubric_id = rubric["rubric_id"]
+            related_rules = RUBRIC_RULE_MAP.get(rubric_id, [])
+            base = self._base_score_for_rubric(rubric_id, state)
+            score = self._compose_score(rule_map, related_rules, base=base)
+            fields = RUBRIC_FIELD_MAP.get(rubric_id, [])
+            scores.append(
+                RubricScore(
+                    rubric_id=rubric_id,
+                    name=rubric["name"],
+                    score=score,
+                    rationale=RUBRIC_RATIONALE.get(rubric_id, rubric.get("description", "")),
+                    evidence=self._collect_rubric_evidence(rule_map, evidence_map, related_rules, fields),
+                )
+            )
+        return scores
+
+    @staticmethod
+    def _base_score_for_rubric(rubric_id: str, state: ProjectState) -> int:
+        if rubric_id == "R1":
+            return RubricScorer._presence_score(state.problem, state.customer_segment)
+        if rubric_id in {"R6", "R10"}:
+            return 3
+        return 4
 
     @staticmethod
     def _presence_score(*values: str | None) -> int:

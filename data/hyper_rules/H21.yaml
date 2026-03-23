@@ -1,0 +1,7 @@
+rule_id: H21
+required_fields:
+  - compliance_notes
+severity: high
+trigger_message: 合规与知识产权风险说明不足，可能触发重大合规问题。
+probing_question: 你是否具备数据授权或版权许可？若被审查，证据链如何提供？
+fix_task: 补合规与授权清单；验收标准：授权来源、使用范围、风险应对、责任人四项齐全。

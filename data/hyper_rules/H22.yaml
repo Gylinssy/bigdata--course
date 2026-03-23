@@ -1,0 +1,7 @@
+rule_id: H22
+required_fields:
+  - validation_evidence
+severity: medium
+trigger_message: 关键结论缺少可追溯验证数据，证据质量不足。
+probing_question: 你的结论来自主观判断还是样本数据？样本量与抽样方式是什么？
+fix_task: 补验证证据表；验收标准：样本来源、样本量、结论、局限性四项齐全。

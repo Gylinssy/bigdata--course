@@ -1,0 +1,8 @@
+rule_id: H16
+required_fields:
+  - customer_segment
+  - channel
+severity: medium
+trigger_message: 客户画像与获客渠道之间存在场景错配或缺少渠道证据。
+probing_question: 你的目标人群是否真实活跃在当前渠道？是否有渠道触达与转化证据？
+fix_task: 补渠道-人群匹配验证；验收标准：至少 1 个渠道触达数据 + 1 个转化证据 + 1 个失败渠道复盘。

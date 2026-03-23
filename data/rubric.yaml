@@ -1,16 +1,60 @@
 rubrics:
   - rubric_id: R1
     name: Problem Clarity
-    description: Problem and customer segment are concrete and well linked.
+    description: Problem and target user are clearly defined.
+    required_evidence: ["problem", "customer_segment", "validation_evidence"]
+    common_mistakes: ["痛点过于宽泛", "没有明确目标人群", "缺少问题验证证据"]
+
   - rubric_id: R2
-    name: Value Delivery
-    description: Value proposition and channel fit the target segment.
+    name: User-Channel Fit
+    description: Acquisition channel matches the target segment.
+    required_evidence: ["customer_segment", "channel", "validation_evidence"]
+    common_mistakes: ["渠道和人群错位", "仅凭主观判断选择渠道", "缺少渠道转化数据"]
+
   - rubric_id: R3
-    name: Market Logic
-    description: TAM, SAM, and SOM are present and logically ordered.
+    name: Value Proposition Fit
+    description: Value proposition directly maps to user pain points.
+    required_evidence: ["problem", "value_proposition"]
+    common_mistakes: ["方案没有回应核心痛点", "价值描述空泛", "缺少可量化改善目标"]
+
   - rubric_id: R4
-    name: Unit Economics
-    description: LTV and CAC support a viable growth loop.
+    name: Competition & Moat
+    description: Team has clear competitor awareness and defensible moat.
+    required_evidence: ["competitive_advantage", "customer_segment"]
+    common_mistakes: ["误判为无竞争对手", "忽略替代方案", "护城河证据不足"]
+
   - rubric_id: R5
-    name: Risk Readiness
-    description: Compliance and sensitive-domain risks are addressed.
+    name: Business Model
+    description: Revenue logic and payer path are explainable.
+    required_evidence: ["revenue_model", "payer", "cost_structure"]
+    common_mistakes: ["只谈用户不谈付费方", "定价无法覆盖成本", "盈利模式不闭环"]
+
+  - rubric_id: R6
+    name: Unit Economics
+    description: LTV/CAC and payback assumptions are economically viable.
+    required_evidence: ["ltv", "cac", "cost_structure"]
+    common_mistakes: ["CAC 口径错误", "LTV 假设过度乐观", "未说明回本周期"]
+
+  - rubric_id: R7
+    name: Execution Plan
+    description: Milestones and pilot path are concrete and feasible.
+    required_evidence: ["execution_plan", "pilot_plan", "traction"]
+    common_mistakes: ["里程碑缺时间维度", "试点对象不明确", "资源与计划不匹配"]
+
+  - rubric_id: R8
+    name: Compliance & Ethics
+    description: Sensitive-domain and IP/compliance risks are addressed.
+    required_evidence: ["compliance_notes", "value_proposition"]
+    common_mistakes: ["忽略数据授权", "忽略版权风险", "缺少风险应对机制"]
+
+  - rubric_id: R9
+    name: Evidence Quality
+    description: Claims are supported by traceable and objective evidence.
+    required_evidence: ["validation_evidence", "traction"]
+    common_mistakes: ["主观推测替代样本数据", "证据不可追溯", "结论与证据不一致"]
+
+  - rubric_id: R10
+    name: Growth Feasibility
+    description: Growth targets and expansion path are realistic.
+    required_evidence: ["growth_target", "som", "execution_plan"]
+    common_mistakes: ["增长目标超出市场上限", "扩张节奏过快", "缺少阶段验证策略"]

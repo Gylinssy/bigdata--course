@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Any, Iterable
 
 from .models import EvidenceItem, EvidenceSource
 
@@ -17,7 +17,14 @@ def dedupe_evidence(items: Iterable[EvidenceItem]) -> list[EvidenceItem]:
     return result
 
 
-def format_evidence(item: EvidenceItem) -> str:
+def _coerce_evidence_item(item: EvidenceItem | dict[str, Any]) -> EvidenceItem:
+    if isinstance(item, EvidenceItem):
+        return item
+    return EvidenceItem.model_validate(item)
+
+
+def format_evidence(item: EvidenceItem | dict[str, Any]) -> str:
+    item = _coerce_evidence_item(item)
     if item.source == EvidenceSource.CASE_PDF:
         page = f" p.{item.page_no}" if item.page_no is not None else ""
         doc_id = item.doc_id or "unknown"

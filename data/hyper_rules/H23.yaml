@@ -1,0 +1,8 @@
+rule_id: H23
+required_fields:
+  - execution_plan
+  - pilot_plan
+severity: high
+trigger_message: 里程碑与资源规模不匹配，扩张计划存在明显不现实风险。
+probing_question: 当前团队与资源是否支持该里程碑？最小可行试点边界在哪里？
+fix_task: 重写里程碑计划；验收标准：按月拆分目标、资源投入、负责人与退出条件。

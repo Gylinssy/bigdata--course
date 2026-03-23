@@ -47,3 +47,6 @@ def test_pipeline_returns_next_task_and_evidence(tmp_path: Path):
     assert output.next_task
     assert output.evidence_used
     assert output.current_diagnosis
+    assert output.structured_diagnosis is not None
+    assert output.constraint_validation is not None
+    assert output.constraint_validation.passed is True

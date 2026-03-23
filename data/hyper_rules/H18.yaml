@@ -1,0 +1,7 @@
+rule_id: H18
+required_fields:
+  - competitive_advantage
+severity: high
+trigger_message: 竞争与替代方案认知不足，存在“无对手”式乐观偏差。
+probing_question: 你的隐形替代方案是什么？用户为何不会继续使用现有方案？
+fix_task: 补竞品与替代方案矩阵；验收标准：至少 3 个直接竞品 + 3 个替代方案 + 对应防御策略。

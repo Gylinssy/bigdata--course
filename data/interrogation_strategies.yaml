@@ -1,0 +1,90 @@
+strategies:
+  - strategy_id: S01_market_scope_calibration
+    name: 市场口径校准
+    edge_type: Market_Sizing_Edge
+    applies_to_rules: [H4, H14]
+    generated_question: 你给出的 TAM/SAM/SOM 口径分别是什么？每个数字的数据源是什么？
+
+  - strategy_id: S02_channel_precision_probe
+    name: 精准获客追问
+    edge_type: Channel_Fit_Edge
+    applies_to_rules: [H1, H16]
+    generated_question: 第一批 100 个用户具体从哪个渠道触达？每个渠道预计 CAC 分别是多少？
+
+  - strategy_id: S03_unit_econ_survival
+    name: 单位经济生存追问
+    edge_type: Unit_Economics_Edge
+    applies_to_rules: [H8, H20]
+    generated_question: 如果没有外部融资，你当前单位经济能支撑多久？回本周期是多少？
+
+  - strategy_id: S04_hidden_competitor_probe
+    name: 隐形替代品追问
+    edge_type: Competition_Defense_Edge
+    applies_to_rules: [H18]
+    generated_question: 即便没有直接竞品，用户现在如何解决这个问题？你替代现有方案的迁移成本是多少？
+
+  - strategy_id: S05_switching_cost_probe
+    name: 迁移成本检验
+    edge_type: Competition_Defense_Edge
+    applies_to_rules: [H12, H18]
+    generated_question: 用户从现有方案切换到你这里，最低要付出的时间/金钱/组织成本分别是多少？
+
+  - strategy_id: S06_evidence_traceback
+    name: 证据链回溯
+    edge_type: Evidence_Validation_Edge
+    applies_to_rules: [H9, H22]
+    generated_question: 这个关键结论来自哪条可追溯证据？样本量、采集时间和偏差控制如何说明？
+
+  - strategy_id: S07_pilot_scope_narrowing
+    name: 试点范围收敛
+    edge_type: Pilot_Readiness_Edge
+    applies_to_rules: [H15]
+    generated_question: 先把试点收敛到一个校园/社区，7 天内最小可验证目标是什么？
+
+  - strategy_id: S08_resource_feasibility_check
+    name: 资源可行性校验
+    edge_type: Execution_Path_Edge
+    applies_to_rules: [H10, H23]
+    generated_question: 你当前团队和预算能支持的最远里程碑是哪个？哪些目标必须下调？
+
+  - strategy_id: S09_compliance_boundary_check
+    name: 合规边界检验
+    edge_type: Risk_Pattern_Edge
+    applies_to_rules: [H11]
+    generated_question: 项目涉及的敏感数据类型是什么？采集、存储、授权和删除流程如何落地？
+
+  - strategy_id: S10_ip_authorization_chain
+    name: 授权链路核验
+    edge_type: Risk_Pattern_Edge
+    applies_to_rules: [H21]
+    generated_question: 素材/模型/内容的授权主体是谁？授权证明和使用边界文件是否齐全？
+
+  - strategy_id: S11_growth_reality_check
+    name: 增长现实性校验
+    edge_type: Growth_Constraint_Edge
+    applies_to_rules: [H14]
+    generated_question: 你的增长目标拆到月度后对应多少新增用户？与渠道产能是否匹配？
+
+  - strategy_id: S12_retention_cohort_probe
+    name: 留存队列追问
+    edge_type: Retention_Growth_Edge
+    applies_to_rules: [H13]
+    generated_question: 你如何定义 7/30 天留存？触发复购或续费的具体机制是什么？
+
+  - strategy_id: S13_pricing_wtp_probe
+    name: 付费意愿检验
+    edge_type: Revenue_Logic_Edge
+    applies_to_rules: [H5, H19]
+    generated_question: 你现在的定价基于什么付费意愿证据？是否做过价格敏感度测试？
+
+  - strategy_id: S14_runway_stress_check
+    name: 现金流压力测试
+    edge_type: Unit_Economics_Edge
+    applies_to_rules: [H19, H20]
+    generated_question: 按最保守收入假设，你的现金流 runway 还有几个月？最先要砍掉的成本项是什么？
+
+  - strategy_id: S15_mvp_validation_cycle
+    name: MVP 验证闭环
+    edge_type: Problem_Solution_Edge
+    applies_to_rules: [H2, H17]
+    generated_question: 下一个 7 天 MVP 只验证一个假设时，你会选哪一个？通过阈值是多少？
