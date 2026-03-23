@@ -1,10 +1,12 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import html
 import json
 import os
+import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -15,547 +17,197 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from core.env_utils import load_env_file  # noqa: E402
 from core.chat_agent import ConversationAgent  # noqa: E402
+from core.case_library import export_structured_chunks  # noqa: E402
+from core.env_utils import load_env_file  # noqa: E402
 from core.evidence import format_evidence  # noqa: E402
+from core.knowledge_graph import load_kg_nodes, retrieve_kg_nodes  # noqa: E402
 from core.models import ChatMessage, ProjectCoachRequest  # noqa: E402
 from core.ocr.ingest import ingest_directory  # noqa: E402
 from core.pipeline import ProjectCoachPipeline  # noqa: E402
-
-load_env_file()
+from core.rule_engine import RuleEngine  # noqa: E402
+from ui.auth import (  # noqa: E402
+    ROLE_ADMIN,
+    ROLE_STUDENT,
+    SECTION_ADMIN,
+    SECTION_CENTER,
+    SECTION_STUDENT,
+    SECTION_TEACHER,
+    authenticate,
+    current_user,
+    ensure_authorized_section,
+    init_auth_state,
+    login_user,
+    logout_user,
+    register_user,
+)
+from ui.asset_precheck import build_asset_scale_report  # noqa: E402
+from ui.dashboard_data import (  # noqa: E402
+    average_rubric_scores,
+    average_score_value,
+    build_admin_metrics,
+    high_risk_projects,
+    load_records_or_mock,
+    top_rule_counts,
+)
+from ui.styles import inject_styles  # noqa: E402
+from ui.visuals import (  # noqa: E402
+    render_hypergraph_visualization,
+    render_rule_bar_chart,
+    render_rule_status_cards,
+    render_score_bar_chart,
+    render_score_cards,
+    render_summary_metrics,
+)
 
 DATA_CASES_DIR = ROOT / "data" / "cases"
 OUTPUT_CASES_DIR = ROOT / "outputs" / "cases"
+PROJECT_ARCHIVE_DIR = ROOT / "outputs" / "projects"
 EXAMPLES_PATH = ROOT / "data" / "examples" / "project_inputs.jsonl"
-ICON_URLS = {
-    "brand": "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/chat-square-dots-fill.svg",
-    "student": "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/person-workspace.svg",
-    "teacher": "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/mortarboard-fill.svg",
-    "tools": "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/gear-wide-connected.svg",
-    "settings": "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/sliders.svg",
+
+COMPETITION_TEMPLATES: dict[str, dict[str, object]] = {
+    "创新创业通用": {
+        "weights": {"R1": 0.12, "R2": 0.10, "R3": 0.10, "R4": 0.08, "R5": 0.12, "R6": 0.12, "R7": 0.10, "R8": 0.10, "R9": 0.08, "R10": 0.08},
+        "notes": "强调问题定义与价值闭环，适用于日常课程路演。",
+    },
+    "互联网+": {
+        "weights": {"R1": 0.10, "R2": 0.12, "R3": 0.10, "R4": 0.10, "R5": 0.14, "R6": 0.14, "R7": 0.10, "R8": 0.08, "R9": 0.06, "R10": 0.06},
+        "notes": "更看重市场与商业闭环，同时保持风险可控。",
+    },
+    "挑战杯": {
+        "weights": {"R1": 0.10, "R2": 0.08, "R3": 0.10, "R4": 0.14, "R5": 0.10, "R6": 0.10, "R7": 0.10, "R8": 0.14, "R9": 0.08, "R10": 0.06},
+        "notes": "更重视可落地性、社会价值与合规边界。",
+    },
+    "数学建模导向": {
+        "weights": {"R1": 0.08, "R2": 0.08, "R3": 0.10, "R4": 0.08, "R5": 0.08, "R6": 0.16, "R7": 0.10, "R8": 0.10, "R9": 0.10, "R10": 0.12},
+        "notes": "更关注指标定义、约束严谨性与财务一致性。",
+    },
 }
 
+GHOSTWRITING_MARKERS = (
+    "代写",
+    "直接写",
+    "帮我写完",
+    "写一篇",
+    "可直接提交",
+    "不用我改",
+    "1000字",
+    "2000字",
+)
 
-def inject_styles() -> None:
-    st.markdown(
-        """
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap');
-        :root {
-          --ink: #0f1c1f;
-          --muted: #5f7168;
-          --accent: #69b58a;
-          --accent-2: #2f5d44;
-          --panel: rgba(255, 255, 255, 0.9);
-          --panel-strong: rgba(255, 255, 255, 0.98);
-          --line: rgba(74, 110, 86, 0.12);
-          --sidebar-bg: #eef5ef;
-          --sidebar-card: rgba(255, 255, 255, 0.94);
-          --sidebar-line: rgba(74, 110, 86, 0.14);
-          --sidebar-text: #111827;
-          --sidebar-muted: #6e7f76;
-          --surface-soft: #f1f7f2;
-        }
-        .stApp {
-          background:
-            radial-gradient(circle at 12% 14%, rgba(247, 243, 235, 0.95), transparent 30%),
-            radial-gradient(circle at 82% 18%, rgba(228, 244, 233, 0.92), transparent 28%),
-            linear-gradient(180deg, #fffefb 0%, #f7fbf7 100%);
-          color: var(--ink);
-        }
-        [data-testid="stAppViewContainer"] {
-          background: transparent;
-        }
-        [data-testid="stHeader"] {
-          background: rgba(250, 249, 247, 0.85);
-        }
-        h1, h2, h3, h4 {
-          font-family: 'ZCOOL XiaoWei', 'Noto Serif SC', 'STSong', serif !important;
-          letter-spacing: 0.2px;
-        }
-        body, p, div, span, label, input, textarea, button {
-          font-family: 'IBM Plex Sans Condensed', 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', sans-serif !important;
-        }
-        .badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 12px;
-          border-radius: 999px;
-          background: #ffffff;
-          border: 1px solid var(--line);
-          font-size: 12px;
-          color: var(--muted);
-        }
-        .panel {
-          padding: 16px 18px;
-          border-radius: 14px;
-          background: var(--panel);
-          border: 1px solid var(--line);
-          box-shadow: 0 8px 20px rgba(15, 28, 31, 0.06);
-        }
-        .panel-title {
-          font-weight: 600;
-          font-size: 13px;
-          text-transform: uppercase;
-          letter-spacing: 1.2px;
-          color: var(--muted);
-          margin-bottom: 6px;
-        }
-        .divider {
-          height: 1px;
-          background: var(--line);
-          margin: 6px 0 12px 0;
-        }
-        .stTextArea textarea,
-        .stTextInput input,
-        .stSelectbox [data-baseweb="select"] > div,
-        .stMultiSelect [data-baseweb="select"] > div {
-          border-radius: 16px !important;
-          border-color: rgba(74, 110, 86, 0.08) !important;
-          background: rgba(255, 255, 255, 0.96) !important;
-        }
-        .stButton button {
-          background: var(--accent) !important;
-          color: white !important;
-          border-radius: 14px !important;
-          border: 1px solid rgba(105, 181, 138, 0.35) !important;
-          padding: 0.55rem 1rem !important;
-          box-shadow: none !important;
-        }
-        .stButton button:hover {
-          background: #57a678 !important;
-        }
-        .stChatMessage {
-          border-radius: 22px;
-          padding: 0.25rem 0;
-        }
-        .streamlit-expanderHeader,
-        [data-testid="stExpander"] summary {
-          display: flex !important;
-          align-items: center !important;
-          gap: 0.55rem !important;
-          font-family: 'IBM Plex Sans Condensed', 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', sans-serif !important;
-          font-size: 15px !important;
-          font-weight: 600 !important;
-          line-height: 1.35 !important;
-          color: #23342b !important;
-          background: rgba(255, 255, 255, 0.86);
-          border-radius: 16px;
-          padding: 0.8rem 1rem !important;
-          border: 1px solid rgba(74, 110, 86, 0.12);
-        }
-        [data-testid="stExpander"] summary p {
-          margin: 0 !important;
-          line-height: 1.35 !important;
-          font-size: 15px !important;
-          font-weight: 600 !important;
-        }
-        [data-testid="stExpander"] details > div {
-          border: 1px solid rgba(74, 110, 86, 0.1);
-          border-top: none;
-          border-radius: 0 0 16px 16px;
-          background: rgba(255, 255, 255, 0.62);
-          padding: 0.8rem 1rem 1rem 1rem;
-        }
-        [data-testid="stExpander"] summary::-webkit-details-marker {
-          display: none;
-        }
-        [data-testid="stSidebar"] > div {
-          background: var(--sidebar-bg);
-          color: var(--sidebar-text);
-          border-right: 1px solid rgba(74, 110, 86, 0.18);
-          box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.45);
-        }
-        [data-testid="stSidebarNav"] {
-          display: none;
-        }
-        [data-testid="stSidebar"] {
-          max-height: 100vh;
-          overflow-y: auto;
-          overflow-x: hidden;
-          scrollbar-width: thin;
-          scrollbar-color: rgba(105, 181, 138, 0.9) rgba(255, 255, 255, 0.3);
-        }
-        [data-testid="stSidebar"]::-webkit-scrollbar {
-          width: 10px;
-        }
-        [data-testid="stSidebar"]::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.35);
-          border-radius: 999px;
-        }
-        [data-testid="stSidebar"]::-webkit-scrollbar-thumb {
-          background: linear-gradient(180deg, #7bc595, #5ea67a);
-          border-radius: 999px;
-          border: 2px solid rgba(255, 255, 255, 0.55);
-        }
-        [data-testid="stSidebar"]::-webkit-scrollbar-thumb:hover {
-          background: linear-gradient(180deg, #69b58a, #4f9469);
-        }
-        [data-testid="stSidebar"] .block-container {
-          padding-top: 1.2rem;
-          padding-left: 1rem;
-          padding-right: 1rem;
-          padding-bottom: 1rem;
-        }
-        [data-testid="stSidebar"] .stButton button {
-          background: #ffffff !important;
-          border: 1px solid var(--sidebar-line) !important;
-          color: var(--sidebar-text) !important;
-          border-radius: 16px !important;
-          padding: 0.72rem 0.95rem !important;
-          justify-content: flex-start !important;
-          box-shadow: 0 2px 10px rgba(74, 110, 86, 0.04) !important;
-        }
-        [data-testid="stSidebar"] .stButton button:hover {
-          background: #f2f4f7 !important;
-        }
-        [data-testid="stSidebar"] .stButton button p {
-          font-size: 14px !important;
-        }
-        [data-testid="stSidebar"] div[data-testid="column"] .stButton button {
-          min-height: 2rem !important;
-        }
-        [data-testid="stSidebar"] .stRadio > div {
-          gap: 0.45rem;
-        }
-        .side-title {
-          font-weight: 600;
-          font-size: 12px;
-          color: var(--sidebar-muted);
-          letter-spacing: 0.4px;
-          margin: 1rem 0 0.45rem 0;
-        }
-        .chat-list {
-          margin-top: 0.3rem;
-        }
-        .chat-item {
-          margin-bottom: 0.55rem;
-        }
-        .chat-subline {
-          font-size: 12px;
-          color: var(--sidebar-muted);
-          margin: -0.22rem 0 0.35rem 0.8rem;
-          line-height: 1.3;
-        }
-        .nav-row {
-          display: flex;
-          align-items: center;
-          gap: 0.65rem;
-          margin-bottom: 0.5rem;
-        }
-        .nav-icon-box {
-          width: 36px;
-          height: 36px;
-          border-radius: 12px;
-          background: #ffffff;
-          border: 1px solid var(--sidebar-line);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          overflow: hidden;
-          flex: 0 0 36px;
-        }
-        .nav-icon-box img {
-          width: 18px;
-          height: 18px;
-          object-fit: contain;
-        }
-        [data-testid="stSidebar"] .chat-item [data-testid="column"]:first-child .stButton button {
-          min-height: 72px !important;
-          height: 72px !important;
-          align-items: flex-start !important;
-          padding-top: 0.85rem !important;
-          padding-left: 0.95rem !important;
-          background: #ffffff !important;
-          border: 1px solid rgba(74, 110, 86, 0.14) !important;
-          box-shadow: 0 4px 14px rgba(74, 110, 86, 0.04) !important;
-        }
-        [data-testid="stSidebar"] .chat-item.active [data-testid="column"]:first-child .stButton button {
-          background: #e7f3ea !important;
-          border-color: rgba(105, 181, 138, 0.42) !important;
-        }
-        [data-testid="stSidebar"] .chat-item [data-testid="column"]:first-child .stButton button p {
-          white-space: nowrap !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          line-height: 1.25 !important;
-          font-size: 14px !important;
-          font-weight: 600 !important;
-          color: #111827 !important;
-        }
-        [data-testid="stSidebar"] .chat-item [data-testid="column"]:last-child .stButton button {
-          width: 26px !important;
-          min-width: 26px !important;
-          min-height: 26px !important;
-          height: 26px !important;
-          border-radius: 999px !important;
-          padding: 0 !important;
-          background: rgba(255, 255, 255, 0.96) !important;
-          border: 1px solid rgba(74, 110, 86, 0.1) !important;
-          color: #5f7168 !important;
-          justify-content: center !important;
-        }
-        [data-testid="stSidebar"] .chat-item [data-testid="column"]:last-child .stButton button p {
-          font-size: 13px !important;
-        }
-        .sidebar-bottom {
-          position: sticky;
-          bottom: 0;
-          padding-top: 0.75rem;
-          margin-top: 1rem;
-          background: linear-gradient(180deg, rgba(238, 245, 239, 0), rgba(238, 245, 239, 0.94) 28%, rgba(238, 245, 239, 1) 100%);
-        }
-        .settings-sheet {
-          background: rgba(255, 255, 255, 0.72);
-          border: 1px solid rgba(74, 110, 86, 0.08);
-          border-radius: 22px;
-          padding: 1rem 1.1rem;
-          box-shadow: 0 12px 36px rgba(15, 23, 42, 0.04);
-          margin-bottom: 1rem;
-        }
-        .topbar {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          padding: 0.1rem 0 0.9rem 0;
-          border-radius: 0;
-          background: transparent;
-          border-bottom: 1px solid rgba(74, 110, 86, 0.1);
-          margin-bottom: 1rem;
-        }
-        .topbar-left {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-        }
-        .session-title {
-          font-size: 18px;
-          font-weight: 600;
-          color: #111827;
-        }
-        .session-subtitle {
-          font-size: 12px;
-          color: var(--muted);
-        }
-        .topbar-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 999px;
-          background: #7ecb98;
-        }
-        .main-wrap {
-          max-width: 1100px;
-          margin: 0 auto;
-        }
-        .chat-layout {
-          display: block;
-        }
-        .chat-stage {
-          min-height: 0;
-          padding-top: 0.25rem;
-          padding-bottom: 2rem;
-        }
-        .empty-state {
-          padding: 1.25rem 0.2rem 0.5rem 0.2rem;
-          text-align: center;
-          color: var(--muted);
-        }
-        .empty-state h2 {
-          font-size: 32px;
-          margin: 0 0 0.25rem 0 !important;
-        }
-        .message-wrap {
-          max-width: 920px;
-          margin: 0 auto 1rem auto;
-        }
-        .message-user {
-          margin: 0 0 1rem auto;
-          max-width: 78%;
-          background: rgba(255, 255, 255, 0.92);
-          border: 1px solid rgba(74, 110, 86, 0.08);
-          border-radius: 20px;
-          padding: 0.95rem 1.1rem;
-          box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
-        }
-        .message-assistant {
-          display: grid;
-          grid-template-columns: 44px 1fr;
-          gap: 1rem;
-          align-items: flex-start;
-        }
-        .assistant-avatar {
-          width: 44px;
-          height: 44px;
-          border-radius: 999px;
-          background: linear-gradient(145deg, #8fb4ff, #6b8ff5);
-          color: white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 22px;
-          box-shadow: 0 10px 22px rgba(107, 143, 245, 0.18);
-        }
-        .assistant-shell {
-          background: rgba(255, 255, 255, 0.78);
-          border: 1px solid rgba(74, 110, 86, 0.08);
-          border-radius: 28px;
-          padding: 1.1rem 1.35rem;
-          box-shadow: 0 16px 40px rgba(15, 23, 42, 0.05);
-        }
-        .assistant-thinking {
-          color: #60746a;
-          font-size: 15px;
-        }
-        .assistant-meta {
-          font-size: 12px;
-          color: var(--muted);
-          margin-top: 0.85rem;
-          padding-top: 0.85rem;
-          border-top: 1px solid rgba(74, 110, 86, 0.08);
-        }
-        .input-shell {
-          background: rgba(255, 255, 255, 0.92);
-          border: 1px solid rgba(74, 110, 86, 0.08);
-          border-radius: 28px;
-          padding: 0.8rem;
-          box-shadow: 0 18px 45px rgba(15, 23, 42, 0.06);
-          margin: 0.2rem auto 0 auto;
-          max-width: 920px;
-          position: sticky;
-          bottom: 14px;
-          z-index: 20;
-          backdrop-filter: blur(8px);
-        }
-        .input-shell textarea {
-          min-height: 110px !important;
-          border: none !important;
-          box-shadow: none !important;
-          background: transparent !important;
-        }
-        .input-shell .stTextArea,
-        .input-shell .stTextArea > div,
-        .input-shell .stTextArea > div > div {
-          background: transparent !important;
-          border: none !important;
-          box-shadow: none !important;
-          padding-top: 0 !important;
-          margin-top: 0 !important;
-        }
-        .toolbar-note {
-          font-size: 12px;
-          color: var(--muted);
-          padding-top: 0.35rem;
-          text-align: right;
-        }
-        .section-frame {
-          background: rgba(255, 255, 255, 0.76);
-          border: 1px solid rgba(74, 110, 86, 0.06);
-          border-radius: 24px;
-          padding: 1.2rem 1.25rem;
-          box-shadow: 0 12px 36px rgba(15, 23, 42, 0.04);
-          margin-bottom: 1rem;
-        }
-        .topbar .title {
-          font-family: 'ZCOOL XiaoWei', 'Noto Serif SC', 'STSong', serif !important;
-          font-size: 18px;
-          margin: 0;
-        }
-        .topbar .meta {
-          font-size: 12px;
-          color: var(--muted);
-        }
-        .icon-label {
-          font-size: 18px;
-          margin-right: 0.45rem;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
+OFF_TOPIC_MARKERS = (
+    "忽略以上",
+    "爬虫",
+    "抓取电商数据",
+    "写一段python",
+    "只要代码",
+)
+
+EMOTIONAL_MARKERS = (
+    "太难",
+    "不想思考",
+    "随便",
+    "交差",
+    "帮我直接写完",
+)
+
+
+@st.cache_resource
+def build_pipeline() -> ProjectCoachPipeline:
+    return ProjectCoachPipeline()
+
+
+@st.cache_resource
+def build_conversation_agent() -> ConversationAgent:
+    return ConversationAgent()
+
+
+@st.cache_resource
+def build_rule_engine() -> RuleEngine:
+    return RuleEngine()
+
+
+def ensure_env_loaded() -> None:
+    load_env_file(override=True)
+
+
+def ensure_app_state() -> None:
+    init_auth_state(st.session_state)
+    st.session_state.setdefault("active_section", SECTION_STUDENT)
+    st.session_state.setdefault("auth_view", "login")
+    st.session_state.setdefault("student_result", None)
+    st.session_state.setdefault("student_last_project_id", None)
+    st.session_state.setdefault("student_draft_project_id", f"p-{uuid4().hex[:8]}")
+    st.session_state.setdefault("chat_sessions", [])
+    st.session_state.setdefault("active_chat_id", None)
+    st.session_state.setdefault("learning_reply", "")
+    st.session_state.setdefault("learning_debug", None)
+    st.session_state.setdefault("competition_template", list(COMPETITION_TEMPLATES.keys())[0])
+    st.session_state.setdefault(
+        "teacher_intervention",
+        {"enabled": False, "style": "严谨提问", "required_case": "", "note": ""},
     )
+    st.session_state.setdefault("unauthorized_attempts", [])
+    if not st.session_state["chat_sessions"]:
+        create_chat_session()
 
 
 def load_examples() -> list[dict]:
     if not EXAMPLES_PATH.exists():
         return []
-    examples = []
+    rows = []
     for line in EXAMPLES_PATH.read_text(encoding="utf-8").splitlines():
         if line.strip():
-            examples.append(json.loads(line))
-    return examples
-
-
-def build_pipeline() -> ProjectCoachPipeline:
-    return ProjectCoachPipeline()
-
-
-def build_conversation_agent() -> ConversationAgent:
-    return ConversationAgent()
+            rows.append(json.loads(line))
+    return rows
 
 
 def load_project_archives() -> list[str]:
-    archive_dir = ROOT / "outputs" / "projects"
-    if not archive_dir.exists():
+    if not PROJECT_ARCHIVE_DIR.exists():
         return []
-    archives = sorted(archive_dir.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
-    return [archive.stem for archive in archives]
+    files = sorted(PROJECT_ARCHIVE_DIR.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+    return [path.stem for path in files]
 
 
-def ensure_chat_state() -> None:
-    if "chat_sessions" not in st.session_state:
-        st.session_state["chat_sessions"] = []
-    if "active_chat_id" not in st.session_state:
-        st.session_state["active_chat_id"] = None
-    if "active_section" not in st.session_state:
-        st.session_state["active_section"] = "学生端"
-    if "pending_chat_request" not in st.session_state:
-        st.session_state["pending_chat_request"] = None
-    if not st.session_state["chat_sessions"]:
-        create_chat_session()
+def load_project_payload(project_id: str) -> dict:
+    path = PROJECT_ARCHIVE_DIR / f"{project_id}.json"
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
 
 def create_chat_session() -> str:
     session_id = f"c-{uuid4().hex[:8]}"
-    st.session_state["chat_sessions"].insert(
-        0,
-        {"id": session_id, "title": "新建会话", "messages": []},
-    )
+    st.session_state["chat_sessions"].insert(0, {"id": session_id, "title": "新会话", "messages": []})
     st.session_state["active_chat_id"] = session_id
     return session_id
 
 
-def delete_chat_session(session_id: str) -> None:
-    sessions = st.session_state["chat_sessions"]
-    st.session_state["chat_sessions"] = [session for session in sessions if session["id"] != session_id]
-    if not st.session_state["chat_sessions"]:
-        create_chat_session()
-        return
-    if st.session_state["active_chat_id"] == session_id:
-        st.session_state["active_chat_id"] = st.session_state["chat_sessions"][0]["id"]
-
-
-def get_active_session() -> dict:
-    ensure_chat_state()
-    active_id = st.session_state["active_chat_id"]
+def get_active_chat_session() -> dict:
     for session in st.session_state["chat_sessions"]:
-        if session["id"] == active_id:
+        if session["id"] == st.session_state["active_chat_id"]:
             return session
     st.session_state["active_chat_id"] = st.session_state["chat_sessions"][0]["id"]
     return st.session_state["chat_sessions"][0]
 
 
-def update_session_title(session: dict) -> None:
-    user_messages = [msg["content"].strip() for msg in session["messages"] if msg["role"] == "user" and msg["content"].strip()]
+def delete_chat_session(session_id: str) -> None:
+    st.session_state["chat_sessions"] = [item for item in st.session_state["chat_sessions"] if item["id"] != session_id]
+    if not st.session_state["chat_sessions"]:
+        create_chat_session()
+    st.session_state["active_chat_id"] = st.session_state["chat_sessions"][0]["id"]
+
+
+def update_chat_title(session: dict) -> None:
+    user_messages = [item["content"] for item in session["messages"] if item["role"] == "user" and item["content"].strip()]
     if not user_messages:
-        session["title"] = "新建会话"
+        session["title"] = "新会话"
         return
-    title = user_messages[0].replace("\n", " ")
-    session["title"] = title[:14] + ("..." if len(title) > 14 else "")
-
-
-def toggle_ui_flag(name: str) -> None:
-    st.session_state[name] = not st.session_state.get(name, False)
+    title = user_messages[0].replace("\n", " ").strip()
+    session["title"] = title[:18] + ("..." if len(title) > 18 else "")
 
 
 def split_assistant_reply(content: str) -> tuple[str, str | None]:
@@ -566,468 +218,1098 @@ def split_assistant_reply(content: str) -> tuple[str, str | None]:
     return main, f"`model={meta}"
 
 
-def ensure_env_loaded() -> None:
-    load_env_file(override=True)
+def should_block_ghostwriting(question: str) -> bool:
+    normalized = question.strip().lower()
+    return any(marker in normalized for marker in GHOSTWRITING_MARKERS)
+
+
+def build_ghostwriting_reply() -> str:
+    return (
+        "我不能直接代写可提交内容，但可以用启发式方式帮你快速完成。\\n\\n"
+        "请先回答这三个问题：\\n"
+        "1. 你要交付的版本（路演稿/BP/问卷）是哪一种？\\n"
+        "2. 你最缺的是哪一块：用户证据、商业模式还是财务测算？\\n"
+        "3. 你希望本轮先产出哪一个最小成果（只选一个）？"
+    )
+
+
+def build_emotional_redirect_reply() -> str:
+    return (
+        "先不追求完整 BP，我们把任务缩到最小步。\\n\\n"
+        "你现在只做一件事：写 3 句话。\\n"
+        "1. 你的目标用户是谁。\\n"
+        "2. 用户最痛的问题是什么。\\n"
+        "3. 你下一周准备验证的唯一假设是什么。\\n\\n"
+        "完成这三句后，我再帮你继续拆下一步。"
+    )
+
+
+def detect_invalid_project_text(text: str) -> str | None:
+    cleaned = text.strip()
+    if len(cleaned) < 12 or len(re.findall(r"[\u4e00-\u9fffA-Za-z]", cleaned)) < 8:
+        return "未检测到有效的项目信息，请补充“目标用户、核心问题、解决方案、获客渠道”后再提交。"
+    if any(marker in cleaned.lower() for marker in OFF_TOPIC_MARKERS):
+        return "检测到偏离双创场景的请求。请回到创业项目诊断：先描述你的用户、问题和方案。"
+    if any(marker in cleaned for marker in EMOTIONAL_MARKERS):
+        return "先别着急交完整稿。请先提交最小信息：目标用户、核心问题、一个可验证假设。"
+    return None
+
+
+def log_unauthorized_attempt(role: str | None, requested: str | None, redirected: str | None) -> None:
+    if not requested or not redirected or requested == redirected:
+        return
+    attempts: list[dict] = st.session_state.setdefault("unauthorized_attempts", [])
+    attempts.insert(
+        0,
+        {
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "role": role or "anonymous",
+            "requested": requested,
+            "redirected_to": redirected,
+        },
+    )
+    st.session_state["unauthorized_attempts"] = attempts[:100]
+
+
+def infer_project_stage(detected_rules: list[dict]) -> str:
+    status_map = {item.get("rule_id"): item.get("status") for item in detected_rules if isinstance(item, dict)}
+    if status_map.get("H9") in {"fail", "warning"}:
+        return "想法期"
+    if status_map.get("H10") in {"fail", "warning"} or status_map.get("H15") in {"fail", "warning"}:
+        return "原型期"
+    return "验证期"
+
+
+def build_learning_tutor_structured_output(question: str, project_hint: str, kg_nodes: list[dict]) -> str:
+    normalized = question.lower()
+    concept = "通用创业概念"
+    definition = "把抽象概念转成可验证的项目动作：有对象、有指标、有时间边界。"
+    example = f"结合你的项目（{project_hint}），先把“谁痛、痛多深、如何验证”写成三列表。"
+    mistakes = [
+        "只写概念定义，不落到你的项目场景。",
+        "只写结论，不给可验证证据。",
+        "一次塞入多个任务，导致执行失败。",
+    ]
+    task = "请只完成一件事：写一版“问题-证据-指标”单页。"
+    artifact = "一页表格（问题、目标用户、证据来源、验证指标、截止时间）。"
+    criteria = [
+        "至少包含 1 个明确用户群体与 1 个可量化指标。",
+        "证据来源可追溯（访谈/问卷/行为数据至少一类）。",
+        "任务边界清楚，24 小时内可完成。"
+    ]
+
+    if "tam" in normalized or "sam" in normalized or "som" in normalized:
+        concept = "TAM / SAM / SOM"
+        definition = "TAM 是总市场，SAM 是可服务市场，SOM 是你当前阶段可拿到的市场。"
+        example = f"{project_hint} 可以先按“全国-本省-首批试点”三层估算 TAM/SAM/SOM。"
+        mistakes = [
+            "把 TAM 直接当可拿到市场。",
+            "没有说明口径和时间边界。",
+            "SOM 与团队资源规模不匹配。"
+        ]
+        task = "只做一张 TAM/SAM/SOM 口径表，并写清每个数字来源。"
+        artifact = "一页市场口径表（定义、数值、来源链接、计算过程）。"
+    elif "mvp" in normalized:
+        concept = "MVP"
+        definition = "MVP 是最小可行产品，目标是最快验证关键假设，而不是做完整功能。"
+        example = f"{project_hint} 的 MVP 可先验证“用户是否愿意持续使用”而非一次性做全功能。"
+        mistakes = [
+            "把 MVP 做成完整版产品。",
+            "没有定义验证指标。",
+            "验证周期过长，反馈闭环太慢。"
+        ]
+        task = "只定义 1 个 MVP 假设和 1 轮 7 天验证计划。"
+        artifact = "MVP 假设卡（假设、验证动作、样本量、判定阈值、复盘时间）。"
+
+    kg_names = [node.get("name", "unknown") for node in kg_nodes[:3]]
+    return (
+        f"Definition:\n{definition}\n\n"
+        f"Example:\n{example}\n\n"
+        f"Common Mistakes:\n- {mistakes[0]}\n- {mistakes[1]}\n- {mistakes[2]}\n\n"
+        f"Practice Task:\n- {task}\n\n"
+        f"Expected Artifact:\n- {artifact}\n\n"
+        f"Evaluation Criteria:\n- {criteria[0]}\n- {criteria[1]}\n- {criteria[2]}\n\n"
+        f"参考 KG 节点：{', '.join(kg_names)}（概念：{concept}）"
+    )
+
+
+def build_competition_item_reports(
+    rubric_scores: list[dict],
+    rubric_meta_map: dict[str, dict],
+) -> list[dict[str, str]]:
+    reports: list[dict[str, str]] = []
+    for item in rubric_scores:
+        rubric_id = item.get("rubric_id", "unknown")
+        score = int(item.get("score", 0))
+        meta = rubric_meta_map.get(rubric_id, {})
+        required_fields: list[str] = meta.get("required_evidence", []) if isinstance(meta.get("required_evidence"), list) else []
+        common_mistakes: list[str] = meta.get("common_mistakes", []) if isinstance(meta.get("common_mistakes"), list) else []
+
+        evidence_fields = {
+            ev.get("field")
+            for ev in item.get("evidence", [])
+            if isinstance(ev, dict) and ev.get("field")
+        }
+        missing = [field for field in required_fields if field not in evidence_fields]
+        if score <= 2 and not missing:
+            missing = common_mistakes[:1] or ["证据链未覆盖该维度的关键字段"]
+
+        if not missing:
+            missing_text = "当前维度证据基本齐全。"
+            fix_24h = "补充 1 条最新验证数据并复核该维度评分依据。"
+            fix_72h = "完成一次小范围迭代验证并更新证据链。"
+        else:
+            missing_text = "；".join(missing)
+            fix_24h = f"补齐最关键缺口：{missing[0]}，并提交对应证据。"
+            fix_72h = "按缺口完成扩展验证：补样本、补对照、补复盘，并更新评分。"
+
+        reports.append(
+            {
+                "name": item.get("name", rubric_id),
+                "estimated_score": f"{score}/5",
+                "missing_evidence": missing_text,
+                "fix_24h": fix_24h,
+                "fix_72h": fix_72h,
+            }
+        )
+    return reports
+
+
+def compute_capability_profile(messages: list[dict]) -> dict:
+    user_turns = [item.get("content", "") for item in messages if item.get("role") == "user"]
+    joined = "\n".join(user_turns).lower()
+    depth_score = min(5, max(1, len(user_turns)))
+    empathy = 2 + (1 if any(token in joined for token in ["用户", "痛点", "需求"]) else 0) + (1 if "访谈" in joined else 0)
+    ideation = 2 + (1 if any(token in joined for token in ["方案", "功能", "原型"]) else 0) + (1 if "mvp" in joined else 0)
+    business = 2 + (1 if any(token in joined for token in ["定价", "收入", "成本", "ltv", "cac"]) else 0) + (1 if "盈利" in joined else 0)
+    execution = 2 + (1 if any(token in joined for token in ["里程碑", "试点", "计划"]) else 0) + (1 if "时间" in joined else 0)
+    logic = 2 + (1 if any(token in joined for token in ["因为", "所以", "如果"]) else 0) + (1 if depth_score >= 3 else 0)
+    return {
+        "痛点发现(Empathy)": min(5, empathy),
+        "方案策划(Ideation)": min(5, ideation),
+        "商业建模(Business)": min(5, business),
+        "资源执行(Execution)": min(5, execution),
+        "逻辑表达(Logic)": min(5, logic),
+    }
+
+
+def render_login_page() -> None:
+    st.markdown('<div class="login-shell"><div class="login-card">', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="login-title">登录或注册</div>
+        <div class="login-copy">
+          未登录用户不能访问核心页面。当前提供本地 mock 登录与注册，后续可直接替换为正式鉴权。
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    login_col, register_col = st.columns(2)
+    if login_col.button("登录", key="auth_view_login", use_container_width=True, type="primary"):
+        st.session_state["auth_view"] = "login"
+        st.rerun()
+    if register_col.button("注册", key="auth_view_register", use_container_width=True, type="secondary"):
+        st.session_state["auth_view"] = "register"
+        st.rerun()
+
+    if st.session_state.get("auth_view") == "register":
+        register_role = st.selectbox("注册角色", ["student", "teacher"], format_func=lambda item: "学生" if item == "student" else "教师")
+        with st.form("register_form"):
+            display_name = st.text_input("显示名称", placeholder="例如：张同学 / 李老师")
+            username = st.text_input("新用户名", placeholder="至少 3 位")
+            password = st.text_input("新密码", type="password", placeholder="至少 6 位")
+            confirm_password = st.text_input("确认密码", type="password")
+            submitted = st.form_submit_button("注册并登录", use_container_width=True, type="primary")
+        if submitted:
+            if password != confirm_password:
+                st.error("两次输入的密码不一致。")
+            else:
+                ok, message, user = register_user(
+                    st.session_state,
+                    username=username,
+                    password=password,
+                    role=register_role,
+                    display_name=display_name,
+                )
+                if ok and user:
+                    login_user(st.session_state, user)
+                    st.rerun()
+                st.error(message)
+    else:
+        role = st.selectbox(
+            "角色",
+            ["student", "teacher", "admin"],
+            format_func=lambda item: {"student": "学生", "teacher": "教师", "admin": "管理员"}[item],
+        )
+        default_user = {"student": "student", "teacher": "teacher", "admin": "admin"}[role]
+        default_pwd = {"student": "student123", "teacher": "teacher123", "admin": "admin123"}[role]
+        with st.form("login_form"):
+            username = st.text_input("用户名", value=default_user)
+            password = st.text_input("密码", value=default_pwd, type="password")
+            submitted = st.form_submit_button("进入系统", use_container_width=True, type="primary")
+        st.markdown(
+            """
+            <div class="login-note">
+              默认账号：<br/>
+              student / student123<br/>
+              teacher / teacher123<br/>
+              admin / admin123
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if submitted:
+            user = authenticate(st.session_state, username=username, password=password, role=role)
+            if user:
+                login_user(st.session_state, user)
+                st.rerun()
+            st.error("用户名、密码或角色不匹配。")
+
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
+
+def render_sidebar() -> None:
+    user = current_user(st.session_state)
+    if not user:
+        return
+
+    role = user["role"]
+    if role == ROLE_STUDENT:
+        allowed_sections = (SECTION_STUDENT,)
+    elif role == ROLE_ADMIN:
+        allowed_sections = (SECTION_ADMIN, SECTION_TEACHER, SECTION_CENTER)
+    else:
+        allowed_sections = (SECTION_TEACHER, SECTION_CENTER)
+
+    st.sidebar.markdown('<div class="sidebar-brand">Startup Edu Agent</div>', unsafe_allow_html=True)
+    st.sidebar.markdown(
+        '<div class="sidebar-copy">统一学生端、教师端与功能中心交互，管理端负责账号与全局看板。</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.sidebar.markdown('<div class="sidebar-section">工作区</div>', unsafe_allow_html=True)
+    for section in allowed_sections:
+        if st.sidebar.button(section, use_container_width=True, key=f"nav_{section}", type="secondary"):
+            st.session_state["active_section"] = section
+            st.rerun()
+
+    if role == ROLE_STUDENT:
+        st.sidebar.markdown('<div class="sidebar-section">会话</div>', unsafe_allow_html=True)
+        if st.sidebar.button("新建会话", use_container_width=True, key="new_chat_sidebar", type="secondary"):
+            create_chat_session()
+            st.rerun()
+
+        for session in st.session_state["chat_sessions"]:
+            active_prefix = "● " if session["id"] == st.session_state.get("active_chat_id") else ""
+            label = f"{active_prefix}{session['title']}"
+            if st.sidebar.button(label, use_container_width=True, key=f"pick_{session['id']}", type="secondary"):
+                st.session_state["active_chat_id"] = session["id"]
+                st.rerun()
+
+    st.sidebar.markdown(
+        f"""
+        <div class="sidebar-card">
+          <div class="metric-label">当前账号</div>
+          <div class="metric-value" style="font-size:1.03rem;">{html.escape(user["display_name"])}</div>
+          <div class="mini-note">
+            用户名：{html.escape(user["username"])}<br/>
+            角色：{html.escape(user["role"])}
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.sidebar.button("退出登录", use_container_width=True, key="logout", type="secondary"):
+        logout_user(st.session_state)
+        st.rerun()
 
 
 def render_status_panel() -> None:
     ensure_env_loaded()
     api_key = os.getenv("DEEPSEEK_API_KEY")
-    status = "已配置" if api_key else "未配置"
-    st.markdown(f"**API Key**: {status}")
-    st.caption("API Key 读取自项目根目录的 `.env`。")
-    if api_key:
-        st.caption(f"当前 Key：`{api_key[:6]}...{api_key[-4:]}`")
-    st.write(
-        {
-            "DEEPSEEK_BASE_URL": os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-            "DEEPSEEK_OCR_BASE_URL": os.getenv("DEEPSEEK_OCR_BASE_URL", "未配置"),
-            "CASE_INDEX_DIR": os.getenv("CASE_INDEX_DIR", "outputs/cases/index"),
-        }
-    )
-
-
-def render_topbar() -> None:
-    active_session = get_active_session()
-    active_section = st.session_state.get("active_section", "学生端")
-    if active_section == "学生端":
-        title = active_session["title"]
-        subtitle = "当前会话 · Startup Edu Agent"
-    else:
-        title = active_section
-        subtitle = "工作台视图 · Startup Edu Agent"
     st.markdown(
         f"""
-        <div class="topbar">
-          <div class="topbar-left">
-            <div class="topbar-dot"></div>
-            <div>
-              <div class="session-title">{html.escape(title)}</div>
-              <div class="session-subtitle">{html.escape(subtitle)}</div>
-            </div>
+        <div class="surface-card">
+          <div class="surface-title">环境状态</div>
+          <div class="surface-copy">
+            API Key：{"已配置" if api_key else "未配置"}<br/>
+            Chat Base URL：{html.escape(os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"))}<br/>
+            OCR Base URL：{html.escape(os.getenv("DEEPSEEK_OCR_BASE_URL", "未配置"))}<br/>
+            案例索引目录：{html.escape(os.getenv("CASE_INDEX_DIR", "outputs/cases/index"))}
           </div>
-          <div class="badge">DeepSeek 在线</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
 
-def render_project_coach_tab() -> None:
-    st.subheader("项目诊断")
+def render_student_diagnosis_panel() -> None:
+    user = current_user(st.session_state) or {"username": "student"}
     examples = load_examples()
-    selected_example = st.selectbox(
-        "示例",
-        options=["手动输入"] + [f"{item.get('project_id') or item.get('user_id')} 示例" for item in examples],
-        index=0,
+    example_labels = ["手动输入"] + [f"{item.get('project_id') or item.get('user_id')} 示例" for item in examples]
+
+    st.markdown(
+        """
+        <div class="hero-card">
+          <div class="hero-kicker">A2/A3/A4</div>
+          <div class="hero-title">项目诊断与超图一致性检查</div>
+          <div class="hero-copy">
+            先提交项目文本，系统会返回当前诊断、规则命中和下一步唯一任务，再用于后续追问优化。
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    default_text = ""
-    default_user_id = "u1"
-    default_project_id = f"p-{uuid4().hex[:8]}"
-    if selected_example != "手动输入":
-        example = examples[
-            [f"{item.get('project_id') or item.get('user_id')} 示例" for item in examples].index(selected_example)
-        ]
-        default_text = example["project_text"]
-        default_user_id = example.get("user_id", default_user_id)
-        default_project_id = example.get("project_id", default_project_id)
+    left_col, right_col = st.columns([1.42, 0.88])
+    with left_col:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">项目输入</div>', unsafe_allow_html=True)
+        selected_example = st.selectbox("载入示例", example_labels, index=0, key="student_example")
+        default_text = ""
+        default_project_id = st.session_state.get("student_draft_project_id")
+        if selected_example != "手动输入":
+            example = examples[example_labels.index(selected_example) - 1]
+            default_text = example["project_text"]
+            default_project_id = example.get("project_id") or default_project_id
 
-    with st.form("project_coach_form"):
-        col1, col2 = st.columns(2)
-        user_id = col1.text_input("User ID", value=default_user_id)
-        project_id = col2.text_input("Project ID", value=default_project_id)
-        project_text = st.text_area("项目描述", value=default_text, height=260, placeholder="粘贴项目描述")
-        submitted = st.form_submit_button("运行诊断", use_container_width=True)
-
-    if not submitted:
-        return
-    if not project_text.strip():
-        st.warning("请先输入项目描述。")
-        return
-
-    ensure_env_loaded()
-    pipeline = build_pipeline()
-    output = pipeline.run(ProjectCoachRequest(user_id=user_id, project_id=project_id, project_text=project_text))
-
-    st.markdown("### Current Diagnosis")
-    st.write(output.current_diagnosis)
-
-    st.markdown("### Next Task")
-    st.success(output.next_task)
-
-    st.markdown("### Impact")
-    st.write(output.impact)
-
-    st.markdown("### Evidence Used")
-    for item in output.evidence_used:
-        st.write(f"- {format_evidence(item)}")
-
-    st.markdown("### Triggered Rules")
-    st.dataframe(
-        [
-            {
-                "rule_id": rule.rule_id,
-                "status": rule.status.value,
-                "severity": rule.severity.value,
-                "message": rule.message,
-                "fix_task": rule.fix_task,
-            }
-            for rule in output.detected_rules
-        ],
-        use_container_width=True,
-    )
-
-    st.markdown("### Rubric Scores")
-    st.dataframe(
-        [
-            {
-                "rubric_id": score.rubric_id,
-                "name": score.name,
-                "score": score.score,
-                "rationale": score.rationale,
-            }
-            for score in output.rubric_scores
-        ],
-        use_container_width=True,
-    )
-
-    if output.retrieved_case_evidence:
-        st.markdown("### Retrieved Case Evidence")
-        for item in output.retrieved_case_evidence:
-            st.write(f"- {format_evidence(item)}")
-
-    report_open = st.session_state.get("project_markdown_report_open", False)
-    if st.button("隐藏 Markdown Report" if report_open else "显示 Markdown Report", key="project_markdown_report_toggle"):
-        toggle_ui_flag("project_markdown_report_open")
-        st.rerun()
-    if st.session_state.get("project_markdown_report_open", False):
-        st.markdown(output.markdown_report or "")
-
-
-def render_chat_tab() -> None:
-    active_session = get_active_session()
-    pending_request = st.session_state.get("pending_chat_request")
-    is_pending_for_active = bool(pending_request and pending_request.get("session_id") == active_session["id"])
-
-    with st.container():
-        st.markdown('<div class="main-wrap">', unsafe_allow_html=True)
-        st.markdown('<div class="chat-layout">', unsafe_allow_html=True)
-
-        ctrl_a, ctrl_b, ctrl_c = st.columns([1, 1, 1.1])
-        mode = ctrl_a.selectbox("模式", options=["general", "reasoning"], index=0, label_visibility="collapsed")
-        include_context = ctrl_b.checkbox("附带项目上下文", value=True)
-        archive_options = ["自动（取最近）"] + load_project_archives()
-        selected_archive = ctrl_c.selectbox(
-            "上下文来源",
-            options=archive_options,
-            index=0,
-            disabled=not include_context,
-            label_visibility="collapsed",
-        )
-        user_id = st.text_input("User ID", value="u1", label_visibility="collapsed", placeholder="User ID")
-
-        st.markdown('<div class="chat-stage">', unsafe_allow_html=True)
-        if not active_session["messages"]:
-            st.markdown(
-                """
-                <div class="empty-state">
-                  <h2>从一个问题开始</h2>
-                  <div>你可以直接提问项目诊断、路演梳理、课程辅导或教师评估相关问题。</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        else:
-            for message in active_session["messages"]:
-                if message["role"] == "user":
-                    st.markdown('<div class="message-wrap">', unsafe_allow_html=True)
-                    st.markdown(f'<div class="message-user">{html.escape(message["content"])}</div>', unsafe_allow_html=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    continue
-
-                if message["role"] == "assistant":
-                    reply_text, reply_meta = split_assistant_reply(message["content"])
-                    st.markdown('<div class="message-wrap">', unsafe_allow_html=True)
-                    st.markdown(
-                        """
-                        <div class="message-assistant">
-                          <div class="assistant-avatar">··</div>
-                          <div class="assistant-shell">
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(reply_text)
-                    if reply_meta:
-                        st.markdown(f'<div class="assistant-meta">{html.escape(reply_meta)}</div>', unsafe_allow_html=True)
-                    st.markdown("</div></div></div>", unsafe_allow_html=True)
-            if is_pending_for_active:
-                st.markdown('<div class="message-wrap">', unsafe_allow_html=True)
-                st.markdown(
-                    """
-                    <div class="message-assistant">
-                      <div class="assistant-avatar">··</div>
-                      <div class="assistant-shell">
-                        <div class="assistant-thinking">正在思考...</div>
-                      </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
+        with st.form("student_diagnosis_form"):
+            project_id = st.text_input("项目编号", value=default_project_id)
+            project_text = st.text_area("项目文本", value=default_text, height=260, placeholder="粘贴项目描述")
+            submitted = st.form_submit_button("生成初步诊断", use_container_width=True, type="primary")
         st.markdown("</div>", unsafe_allow_html=True)
 
-        with st.form("chat_input_form", clear_on_submit=True):
-            st.markdown('<div class="input-shell">', unsafe_allow_html=True)
-            user_text = st.text_area(
-                "输入框",
-                height=120,
-                placeholder="尽管问",
-                label_visibility="collapsed",
+        if submitted:
+            blocked_message = detect_invalid_project_text(project_text)
+            if blocked_message:
+                st.warning(blocked_message)
+            else:
+                with st.spinner("正在生成诊断..."):
+                    output = build_pipeline().run(
+                        ProjectCoachRequest(
+                            user_id=user["username"],
+                            project_id=project_id,
+                            project_text=project_text.strip(),
+                        )
+                    )
+                st.session_state["student_result"] = {
+                    "request": {
+                        "user_id": user["username"],
+                        "project_id": project_id,
+                        "project_text": project_text.strip(),
+                    },
+                    "output": output.model_dump(mode="json"),
+                }
+                st.session_state["student_last_project_id"] = project_id
+                st.session_state["student_draft_project_id"] = f"p-{uuid4().hex[:8]}"
+                st.success("初步诊断已生成。")
+
+    with right_col:
+        st.markdown(
+            """
+            <div class="surface-card">
+              <div class="surface-title">交互方式</div>
+              <div class="surface-copy">
+                1. 填写项目草案并生成诊断<br/>
+                2. 查看规则命中与评分<br/>
+                3. 在对话区继续追问并修正
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        render_status_panel()
+
+    payload = st.session_state.get("student_result")
+    if not payload:
+        st.markdown('<div class="placeholder-card">还没有诊断结果，请先生成一次。</div>', unsafe_allow_html=True)
+        return
+
+    output = payload["output"]
+    rubric_scores = output.get("rubric_scores", [])
+    detected_rules = output.get("detected_rules", [])
+    evidence_used = output.get("evidence_used", [])
+    project_stage = infer_project_stage(detected_rules)
+    avg_score = round(sum(item["score"] for item in rubric_scores) / len(rubric_scores), 2) if rubric_scores else 0.0
+    non_pass_count = len([item for item in detected_rules if item.get("status") != "pass"])
+
+    render_summary_metrics(
+        [
+            {"label": "项目阶段", "value": project_stage, "footnote": "用于 A2 阶段判断"},
+            {"label": "当前诊断", "value": output.get("current_diagnosis", "暂无"), "footnote": "最优先处理的核心问题"},
+            {"label": "下一步唯一任务", "value": output.get("next_task", "暂无"), "footnote": "严格保持单任务输出"},
+            {"label": "综合概览", "value": f"平均评分 {avg_score}/5", "footnote": f"非通过规则 {non_pass_count} 条 · 证据 {len(evidence_used)} 条"},
+        ]
+    )
+
+    result_tab, detail_tab, markdown_tab = st.tabs(["结果总览", "规则与评分", "Markdown 报告"])
+    with result_tab:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">影响说明</div>', unsafe_allow_html=True)
+        st.write(output.get("impact", "暂无影响说明。"))
+        st.markdown('<div class="surface-title" style="margin-top:1rem;">引用证据</div>', unsafe_allow_html=True)
+        if evidence_used:
+            for item in evidence_used:
+                st.write(f"- {format_evidence(item)}")
+        else:
+            st.info("暂无证据引用。")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with detail_tab:
+        score_col, rule_col = st.columns([1, 1])
+        with score_col:
+            st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+            st.markdown('<div class="surface-title">Rubric 评分</div>', unsafe_allow_html=True)
+            render_score_cards(rubric_scores)
+            render_score_bar_chart(rubric_scores)
+            st.markdown("</div>", unsafe_allow_html=True)
+        with rule_col:
+            st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+            st.markdown('<div class="surface-title">规则状态</div>', unsafe_allow_html=True)
+            render_rule_status_cards(
+                [
+                    {"rule_id": item.get("rule_id", "unknown"), "status": item.get("status", "pass"), "message": item.get("message", "")}
+                    for item in detected_rules
+                ]
             )
-            send_col, note_col = st.columns([1, 3])
-            submitted = send_col.form_submit_button("发送", use_container_width=True)
-            note_col.markdown('<div class="toolbar-note">学生端对话区 · 支持项目上下文</div>', unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
+    with markdown_tab:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown(output.get("markdown_report", "暂无 Markdown 报告。"))
         st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
-    if not submitted or not user_text.strip():
-        if not is_pending_for_active:
-            return
-    else:
-        active_session["messages"].append({"role": "user", "content": user_text.strip()})
-        update_session_title(active_session)
-        st.session_state["pending_chat_request"] = {
-            "session_id": active_session["id"],
-            "mode": mode,
-            "user_id": user_id,
-            "include_context": include_context,
-            "selected_archive": selected_archive,
-        }
-        st.rerun()
-
-    ensure_env_loaded()
-    agent = build_conversation_agent()
-    with st.spinner("正在思考..."):
-        response = agent.chat(
-            [ChatMessage(role=item["role"], content=item["content"]) for item in active_session["messages"]],
-            mode=pending_request["mode"],
-            user_id=pending_request["user_id"],
-            include_project_context=pending_request["include_context"],
-            project_id=None if pending_request["selected_archive"] == "自动（取最近）" else pending_request["selected_archive"],
-        )
-    context_info = f"context_used={response.context_used}"
-    if response.context_project_id:
-        context_info += f" context_project_id={response.context_project_id}"
-    assistant_text = response.reply + f"\n\n`model={response.model} used_llm={response.used_llm} {context_info}`"
-    active_session["messages"].append({"role": "assistant", "content": assistant_text})
-    st.session_state["pending_chat_request"] = None
-    st.rerun()
+    debug_text = ((output.get("rendered_views") or {}) if isinstance(output, dict) else {}).get("debug")
+    if debug_text:
+        with st.expander("调试日志（A3/A4 链路）", expanded=False):
+            try:
+                st.json(json.loads(debug_text))
+            except Exception:
+                st.code(debug_text)
 
 
-def render_ingest_tab() -> None:
-    st.subheader("案例 OCR")
-
-    backend = st.selectbox(
-        "OCR Backend",
-        options=["auto", "deepseek_ocr", "tesseract", "pdf_text"],
-        index=0,
+def render_student_learning_panel() -> None:
+    st.markdown(
+        """
+        <div class="hero-card">
+          <div class="hero-kicker">A1</div>
+          <div class="hero-title">学习辅导与反代写护栏</div>
+          <div class="hero-copy">
+            支持概念讲解、常见错误提示与练习建议。若检测到代写请求，将自动切换到启发式追问模式。
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    uploaded_files = st.file_uploader("上传 PDF", type=["pdf"], accept_multiple_files=True)
+    with st.form("learning_form"):
+        question = st.text_area("学习问题", height=150, placeholder="例如：什么是 TAM/SAM/SOM，应该如何落到我的项目里？")
+        submitted = st.form_submit_button("生成辅导建议", use_container_width=True, type="primary")
 
-    if st.button("保存并执行 Ingest", use_container_width=True):
-        if not uploaded_files:
-            st.warning("请至少上传一个 PDF。")
-            return
-        DATA_CASES_DIR.mkdir(parents=True, exist_ok=True)
-        saved_files = []
-        for file in uploaded_files:
-            target = DATA_CASES_DIR / file.name
-            target.write_bytes(file.getbuffer())
-            saved_files.append(target.name)
-
-        ensure_env_loaded()
-        stats = ingest_directory(DATA_CASES_DIR, OUTPUT_CASES_DIR, backend_name=backend)
-        st.success(
-            f"Ingest 完成：{stats.documents} 个文档，{stats.pages} 页，{stats.chunks} 个 chunk，backend={stats.backend}"
-        )
-        st.write({"saved_files": saved_files})
-
-    pages_path = OUTPUT_CASES_DIR / "pages.jsonl"
-    chunks_path = OUTPUT_CASES_DIR / "chunks.jsonl"
-    if pages_path.exists():
-        st.markdown("### 生成文件")
-        st.write(
-            {
-                "pages.jsonl": str(pages_path),
-                "chunks.jsonl": str(chunks_path),
-                "index_dir": os.getenv("CASE_INDEX_DIR", str(OUTPUT_CASES_DIR / "index")),
+    if submitted:
+        if not question.strip():
+            st.warning("请先输入问题。")
+        elif should_block_ghostwriting(question):
+            if any(marker in question for marker in EMOTIONAL_MARKERS):
+                st.session_state["learning_reply"] = (
+                    "我不会直接代写可提交文本。先把任务缩小，我们一步一步做。\\n\\n"
+                    f"{build_emotional_redirect_reply()}"
+                )
+                strategy = "anti_ghostwriting_emotional_redirect"
+            else:
+                st.session_state["learning_reply"] = build_ghostwriting_reply()
+                strategy = "anti_ghostwriting"
+            st.session_state["learning_debug"] = {
+                "agent_name": "student_learning_tutor",
+                "strategy_selected": strategy,
+                "retrieved_kg_nodes": [],
             }
-        )
-        preview_lines = pages_path.read_text(encoding="utf-8").splitlines()[:3]
-        preview_open = st.session_state.get("pages_jsonl_preview_open", False)
-        if st.button("隐藏 pages.jsonl 预览" if preview_open else "显示 pages.jsonl 预览", key="pages_jsonl_preview_toggle"):
-            toggle_ui_flag("pages_jsonl_preview_open")
-            st.rerun()
-        if st.session_state.get("pages_jsonl_preview_open", False):
-            for line in preview_lines:
-                st.code(line, language="json")
+        elif any(marker in question for marker in EMOTIONAL_MARKERS):
+            st.session_state["learning_reply"] = build_emotional_redirect_reply()
+            st.session_state["learning_debug"] = {
+                "agent_name": "student_learning_tutor",
+                "strategy_selected": "emotional_safety_redirect",
+                "retrieved_kg_nodes": [],
+            }
+        else:
+            payload = st.session_state.get("student_result") or {}
+            request = payload.get("request") if isinstance(payload, dict) else {}
+            project_hint = (request or {}).get("project_id") or "当前项目"
+            kg_nodes = load_kg_nodes()
+            retrieved_nodes = retrieve_kg_nodes(question.strip(), kg_nodes, top_k=6)
+            st.session_state["learning_reply"] = build_learning_tutor_structured_output(
+                question=question.strip(),
+                project_hint=project_hint,
+                kg_nodes=retrieved_nodes,
+            )
+            st.session_state["learning_debug"] = {
+                "agent_name": "student_learning_tutor",
+                "strategy_selected": "socratic_structured_tutor",
+                "retrieved_kg_nodes": [node.get("name", "unknown") for node in retrieved_nodes],
+            }
+
+    if st.session_state.get("learning_reply"):
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">辅导输出</div>', unsafe_allow_html=True)
+        st.write(st.session_state["learning_reply"])
+        st.markdown("</div>", unsafe_allow_html=True)
+    learning_debug = st.session_state.get("learning_debug")
+    if learning_debug:
+        with st.expander("调试日志（A1-3 KG 检索）", expanded=False):
+            st.json(learning_debug)
 
 
-def render_teacher_tab() -> None:
-    st.subheader("教师看板")
-    ensure_env_loaded()
-    pipeline = build_pipeline()
-    dashboard = pipeline.teacher_dashboard()
-
-    metric1, metric2, metric3 = st.columns(3)
-    metric1.metric("项目总数", dashboard.total_projects)
-    metric2.metric("高风险项目数", len(dashboard.high_risk_projects))
-    metric3.metric("规则触发种类", len(dashboard.top_rule_triggers))
-
-    st.markdown("### Top Rule Triggers")
-    st.dataframe(
-        [{"rule_id": key, "count": value} for key, value in dashboard.top_rule_triggers.items()],
-        use_container_width=True,
+def render_student_competition_panel() -> None:
+    st.markdown(
+        """
+        <div class="hero-card">
+          <div class="hero-kicker">A5</div>
+          <div class="hero-title">路演评分与动态 Rubric</div>
+          <div class="hero-copy">切换赛事模板后，系统会按不同维度权重重新计算加权得分。</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    st.markdown("### High Risk Projects")
-    if dashboard.high_risk_projects:
-        st.write(dashboard.high_risk_projects)
-    else:
-        st.info("当前没有 high_risk 项目。")
+    payload = st.session_state.get("student_result")
+    if not payload:
+        st.markdown('<div class="placeholder-card">请先在“项目诊断”中生成一次结果，再进行路演评分。</div>', unsafe_allow_html=True)
+        return
 
-    st.markdown("### Missing Field Hotspots")
-    st.dataframe(
-        [{"field": key, "missing_count": value} for key, value in dashboard.field_missing_hotspots.items()],
-        use_container_width=True,
+    template_names = list(COMPETITION_TEMPLATES.keys())
+    current_template = st.session_state.get("competition_template", template_names[0])
+    default_index = template_names.index(current_template) if current_template in template_names else 0
+    template_name = st.selectbox("赛事模板", template_names, index=default_index)
+    st.session_state["competition_template"] = template_name
+
+    config = COMPETITION_TEMPLATES[template_name]
+    weights: dict[str, float] = config["weights"]  # type: ignore[assignment]
+    st.markdown(f'<div class="status-chip">{html.escape(str(config["notes"]))}</div>', unsafe_allow_html=True)
+
+    rubric_scores = payload["output"].get("rubric_scores", [])
+    rubric_meta_map = {item["rubric_id"]: item for item in build_pipeline().rubric_scorer.rubrics}
+    weighted_sum = 0.0
+    weight_total = 0.0
+    weighted_rows = []
+    for item in rubric_scores:
+        rubric_id = item.get("rubric_id")
+        weight = weights.get(rubric_id, 0.0)
+        score = float(item.get("score", 0))
+        weighted = round(score * weight, 3)
+        weighted_rows.append({"name": f"{item.get('name')} (w={weight:.2f})", "score": weighted})
+        weighted_sum += weighted
+        weight_total += weight
+    final_score = round((weighted_sum / weight_total), 2) if weight_total > 0 else 0.0
+    item_reports = build_competition_item_reports(rubric_scores, rubric_meta_map)
+
+    render_summary_metrics(
+        [
+            {"label": "模板", "value": template_name, "footnote": "动态切换评分口径"},
+            {"label": "加权总分", "value": f"{final_score}/5", "footnote": "依据模板权重计算"},
+            {"label": "维度覆盖率", "value": "100%", "footnote": "按当前 Rubric 完整覆盖"},
+        ]
     )
+    st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+    st.markdown('<div class="surface-title">加权维度得分</div>', unsafe_allow_html=True)
+    render_score_bar_chart(weighted_rows, y_key="score")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("### Intervention Suggestions")
-    for item in dashboard.intervention_suggestions:
-        st.write(f"- {item}")
-
-
-def render_overview() -> None:
-    left, right = st.columns([1.1, 1])
-    with left:
+    st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+    st.markdown('<div class="surface-title">A5 逐项评分报告</div>', unsafe_allow_html=True)
+    for row in item_reports:
         st.markdown(
-            """
-            <div class="panel">
-              <div class="panel-title">系统能力</div>
-              <div class="divider"></div>
-              <div>项目诊断 / 规则触发 / 证据引用</div>
-              <div>对话辅导 / 项目上下文追踪</div>
-              <div>案例 OCR / 教师看板</div>
+            f"""
+            <div class="score-grid-card">
+              <strong>{html.escape(row["name"])}</strong>
+              <span><b>Estimated Score:</b> {html.escape(row["estimated_score"])}</span><br/>
+              <span><b>Missing Evidence:</b> {html.escape(row["missing_evidence"])}</span><br/>
+              <span><b>Minimal Fix (24h):</b> {html.escape(row["fix_24h"])}</span><br/>
+              <span><b>Minimal Fix (72h):</b> {html.escape(row["fix_72h"])}</span>
             </div>
             """,
             unsafe_allow_html=True,
         )
-    with right:
-        st.markdown(
-            """
-            <div class="panel">
-              <div class="panel-title">当前状态</div>
-              <div class="divider"></div>
-              <div>模型：DeepSeek OpenAI-compatible</div>
-              <div>本地索引：outputs/cases/index</div>
-              <div>运行模式：MVP Prototype</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-
-def render_settings_sheet() -> None:
-    st.markdown('<div class="settings-sheet">', unsafe_allow_html=True)
-    st.markdown("### 设置")
-    render_overview()
-    render_status_panel()
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def render_global_sidebar() -> None:
-    ensure_chat_state()
+def render_student_page() -> None:
+    diagnose_tab, learning_tab, competition_tab, chat_tab = st.tabs(
+        ["项目诊断（A2-A4）", "学习辅导（A1）", "路演评分（A5）", "追问对话"]
+    )
+    with diagnose_tab:
+        render_student_diagnosis_panel()
+    with learning_tab:
+        render_student_learning_panel()
+    with competition_tab:
+        render_student_competition_panel()
+    with chat_tab:
+        render_student_chat_panel()
 
-    if st.sidebar.button("⊕  新建会话", use_container_width=True):
-        create_chat_session()
-        st.rerun()
 
-    nav_items = [
-        ("学生端", "学生端", ICON_URLS["student"]),
-        ("教师端", "教师端", ICON_URLS["teacher"]),
-        ("功能中心", "功能中心", ICON_URLS["tools"]),
-    ]
-    st.sidebar.markdown("<div class='side-title'>导航</div>", unsafe_allow_html=True)
-    for section_name, button_label, icon_url in nav_items:
-        icon_col, button_col = st.sidebar.columns([1, 5])
-        icon_col.markdown(
-            f'<div class="nav-row"><div class="nav-icon-box"><img src="{icon_url}" alt="{button_label} icon"></div></div>',
-            unsafe_allow_html=True,
-        )
-        if button_col.button(button_label, use_container_width=True, key=f"nav_{section_name}"):
-            st.session_state["active_section"] = section_name
-            st.rerun()
+def render_student_chat_panel() -> None:
+    active_session = get_active_chat_session()
+    archives = load_project_archives()
+    last_project_id = st.session_state.get("student_last_project_id")
+    archive_options = ["自动（最近）"] + archives
+    default_index = archive_options.index(last_project_id) if last_project_id in archive_options else 0
 
-    st.sidebar.markdown("<div class='side-title'>历史会话</div>", unsafe_allow_html=True)
-    sessions = st.session_state["chat_sessions"]
-    for session in sessions:
-        preview = ""
-        if session["messages"]:
-            preview = session["messages"][-1]["content"].replace("\n", " ")
-            preview = preview[:26] + ("..." if len(preview) > 26 else "")
-        active_class = " active" if session["id"] == st.session_state["active_chat_id"] else ""
-        st.sidebar.markdown(f'<div class="chat-item{active_class}">', unsafe_allow_html=True)
-        pick_col, del_col = st.sidebar.columns([6, 1])
-        card_label = session["title"]
-        if pick_col.button(card_label, use_container_width=True, key=f"chat_pick_{session['id']}"):
-            st.session_state["active_chat_id"] = session["id"]
-            st.session_state["active_section"] = "学生端"
-            st.rerun()
-        if del_col.button("×", use_container_width=True, key=f"chat_drop_{session['id']}"):
-            delete_chat_session(session["id"])
-            st.rerun()
-        st.sidebar.markdown("</div>", unsafe_allow_html=True)
-
-    st.sidebar.markdown('<div class="sidebar-bottom">', unsafe_allow_html=True)
-    settings_icon_col, settings_btn_col = st.sidebar.columns([1, 5])
-    settings_icon_col.markdown(
-        f'<div class="nav-row"><div class="nav-icon-box"><img src="{ICON_URLS["settings"]}" alt="settings icon"></div></div>',
+    st.markdown(
+        """
+        <div class="hero-card">
+          <div class="hero-kicker">追问区</div>
+          <div class="hero-title">围绕诊断结果继续优化</div>
+          <div class="hero-copy">在同一会话里持续追问，便于形成版本迭代轨迹。</div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
-    if settings_btn_col.button("设置", use_container_width=True, key="sidebar_settings_toggle"):
-        st.session_state["active_section"] = "设置"
+
+    st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+    mode_col, context_col, source_col = st.columns([1, 1, 1.2])
+    mode = mode_col.selectbox("模式", ["general", "reasoning"], index=0)
+    include_context = context_col.checkbox("附带项目上下文", value=bool(last_project_id or archives))
+    selected_archive = source_col.selectbox("上下文来源", archive_options, index=default_index, disabled=not include_context)
+    intervention = st.session_state.get("teacher_intervention", {})
+    if intervention.get("enabled"):
+        st.markdown('<div class="status-chip">已应用教师干预策略</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="chat-thread">', unsafe_allow_html=True)
+    for message in active_session["messages"]:
+        if message["role"] == "user":
+            st.markdown(f'<div class="chat-bubble-user">你：{html.escape(message["content"])}</div>', unsafe_allow_html=True)
+            continue
+        reply_text, reply_meta = split_assistant_reply(message["content"])
+        st.markdown(
+            f"""
+            <div class="chat-bubble-assistant">
+              {reply_text}
+              {f'<div class="assistant-meta">{html.escape(reply_meta)}</div>' if reply_meta else ''}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    with st.form("student_chat_form", clear_on_submit=True):
+        user_text = st.text_area("继续提问", height=120, placeholder="例如：基于刚才诊断，我下一步先补哪一个字段最有价值？")
+        submitted = st.form_submit_button("发送消息", use_container_width=True, type="primary")
+
+    if submitted and user_text.strip():
+        active_session["messages"].append({"role": "user", "content": user_text.strip()})
+        update_chat_title(active_session)
+        model_messages = [ChatMessage(role=item["role"], content=item["content"]) for item in active_session["messages"]]
+        if intervention.get("enabled"):
+            system_note = (
+                f"教师干预策略：{intervention.get('style', '严谨提问')}。"
+                f" 必须引用教学案例：{intervention.get('required_case', '无强制案例')}。"
+                f" 附加备注：{intervention.get('note', '无')}。"
+            )
+            model_messages = [ChatMessage(role="system", content=system_note)] + model_messages
+        with st.spinner("正在生成回复..."):
+            response = build_conversation_agent().chat(
+                model_messages,
+                mode=mode,
+                user_id=(current_user(st.session_state) or {}).get("username"),
+                include_project_context=include_context,
+                project_id=None if selected_archive == "自动（最近）" else selected_archive,
+            )
+        context_info = f"context_used={response.context_used}"
+        if response.context_project_id:
+            context_info += f" context_project_id={response.context_project_id}"
+        assistant_text = response.reply + f"\n\n`model={response.model} used_llm={response.used_llm} {context_info}`"
+        active_session["messages"].append({"role": "assistant", "content": assistant_text})
         st.rerun()
-    st.sidebar.markdown("</div>", unsafe_allow_html=True)
+
+    if len(st.session_state["chat_sessions"]) > 1:
+        action_col, _ = st.columns([1, 5])
+        if action_col.button("删除当前会话", key="delete_active_chat", type="tertiary"):
+            delete_chat_session(active_session["id"])
+            st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_teacher_page() -> None:
+    records, using_mock = load_records_or_mock(PROJECT_ARCHIVE_DIR)
+    avg_scores = average_rubric_scores(records)
+    rule_rows = top_rule_counts(records)
+    risky_projects = high_risk_projects(records)
+    selected_project_id = st.selectbox("选择项目", [record["project_id"] for record in records], index=0)
+    selected_record = next(record for record in records if record["project_id"] == selected_project_id)
+
+    st.markdown(
+        """
+        <div class="hero-card">
+          <div class="hero-kicker">A6</div>
+          <div class="hero-title">教师端评分、证据溯源与干预建议</div>
+          <div class="hero-copy">聚合学生项目结果，支持单项目批改与班级层级风险洞察。</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if using_mock:
+        st.markdown('<div class="status-chip">当前使用 mock 数据占位；写入 outputs/projects/*.json 后会自动切换为真实数据。</div>', unsafe_allow_html=True)
+
+    render_summary_metrics(
+        [
+            {"label": "项目总数", "value": str(len(records)), "footnote": "已归档可评估项目"},
+            {"label": "高风险项目", "value": str(len(risky_projects)), "footnote": "命中 high_risk 规则"},
+            {"label": "平均评分", "value": f"{average_score_value(records)}/5", "footnote": "全班 Rubric 综合均值"},
+        ]
+    )
+
+    overview_tab, score_tab, assess_tab, intervention_tab, profile_tab, trace_tab = st.tabs(
+        ["班级概览", "评分可视化", "批改报告(A6-1)", "干预配置(A6-3)", "能力画像(A6-4)", "证据溯源"]
+    )
+    with overview_tab:
+        left_col, right_col = st.columns(2)
+        with left_col:
+            st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+            st.markdown('<div class="surface-title">平均 Rubric 评分</div>', unsafe_allow_html=True)
+            render_score_bar_chart(avg_scores, y_key="average_score")
+            st.markdown("</div>", unsafe_allow_html=True)
+        with right_col:
+            st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+            st.markdown('<div class="surface-title">规则触发分布</div>', unsafe_allow_html=True)
+            render_rule_bar_chart(rule_rows)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">A6-2 班级洞察</div>', unsafe_allow_html=True)
+        top5 = rule_rows[:5]
+        coverage = {
+            "规则覆盖率(非 pass 命中)": f"{round((len(top5) / max(1, len(build_rule_engine().rule_specs))) * 100, 2)}%",
+            "高风险项目占比": f"{round((len(risky_projects) / max(1, len(records))) * 100, 2)}%",
+        }
+        st.markdown("**Coverage Summary**")
+        st.json(coverage)
+        st.markdown("**Top 5 Common Mistakes**")
+        if top5:
+            for row in top5:
+                st.write(f"- {row['rule_id']}: {row['count']} 次")
+        else:
+            st.write("- 暂无高频错误")
+        st.markdown("**High-risk Projects**")
+        if risky_projects:
+            for project_id in risky_projects:
+                st.write(f"- {project_id}")
+        else:
+            st.write("- 暂无 high_risk 项目")
+        st.markdown("**Suggested Teaching Interventions**")
+        if top5:
+            st.write(f"- 下周先讲解 `{top5[0]['rule_id']}`，并布置对应修订模板练习。")
+            st.write("- 课堂加入“证据链补全”环节，要求每队提交可追溯证据。")
+        else:
+            st.write("- 保持当前节奏，重点检查证据质量与执行计划。")
+        rule_frequency = {row["rule_id"]: row["count"] for row in rule_rows}
+        st.markdown("**统计信息(JSON)**")
+        st.json(
+            {
+                "total_projects": len(records),
+                "average_rubric_score": average_score_value(records),
+                "rule_trigger_frequency": rule_frequency,
+            }
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with score_tab:
+        chart_col, info_col = st.columns([1.15, 0.85])
+        with chart_col:
+            st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+            st.markdown(f'<div class="surface-title">项目评分 · {html.escape(selected_project_id)}</div>', unsafe_allow_html=True)
+            render_score_cards(selected_record.get("rubric_scores", []))
+            render_score_bar_chart(selected_record.get("rubric_scores", []))
+            st.markdown("</div>", unsafe_allow_html=True)
+        with info_col:
+            st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+            st.markdown('<div class="surface-title">诊断摘要</div>', unsafe_allow_html=True)
+            st.write(selected_record.get("current_diagnosis"))
+            st.markdown("**下一步建议**")
+            st.write(selected_record.get("next_task"))
+            st.markdown("**规则状态**")
+            render_rule_status_cards(
+                [{"rule_id": rule_id, "status": status, "message": ""} for rule_id, status in selected_record.get("rule_statuses", {}).items()]
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    with assess_tab:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">A6-1 批改报告</div>', unsafe_allow_html=True)
+        st.markdown("**Rubric Table**")
+        st.dataframe(
+            [
+                {"Rubric": item.get("name"), "Score": item.get("score"), "Rationale": item.get("rationale")}
+                for item in selected_record.get("rubric_scores", [])
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.markdown("**Evidence Trace**")
+        payload = load_project_payload(selected_project_id)
+        evidence_items = (payload.get("output") or {}).get("evidence_used", []) if payload else []
+        if evidence_items:
+            for item in evidence_items[:6]:
+                st.write(f"- {format_evidence(item)}")
+        else:
+            st.write("- 暂无证据链（mock 数据可能无原文映射）")
+        st.markdown("**Revision Suggestions**")
+        st.write(f"- 优先修复：{selected_record.get('current_diagnosis', '暂无')}")
+        st.write(f"- 下一步：{selected_record.get('next_task', '暂无')}")
+        st.markdown("**Instructor Review Notes**")
+        st.write("- 复核评分与证据一致性，确认低分维度已给出可执行修复路径。")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with intervention_tab:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">A6-3 教师反向干预配置</div>', unsafe_allow_html=True)
+        intervention = st.session_state.get("teacher_intervention", {})
+        enabled = st.checkbox("启用干预策略", value=bool(intervention.get("enabled")), key="teacher_intervention_enabled")
+        style = st.selectbox("对话风格", ["严谨提问", "鼓励式引导", "证据优先"], index=0)
+        required_case = st.text_input("强制引用案例/材料", value=str(intervention.get("required_case", "")))
+        note = st.text_area("教师备注", value=str(intervention.get("note", "")), height=90)
+        if st.button("保存干预策略", use_container_width=True, type="primary", key="save_intervention"):
+            st.session_state["teacher_intervention"] = {
+                "enabled": enabled,
+                "style": style,
+                "required_case": required_case.strip(),
+                "note": note.strip(),
+            }
+            st.success("干预策略已保存，学生端新会话将实时生效。")
+        st.write("当前策略：")
+        st.json(st.session_state.get("teacher_intervention", {}))
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with profile_tab:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">A6-4 三轮对话能力画像</div>', unsafe_allow_html=True)
+        all_messages: list[dict] = []
+        for session in st.session_state.get("chat_sessions", []):
+            all_messages.extend(session.get("messages", []))
+        user_turns = [item for item in all_messages if item.get("role") == "user"]
+        if len(user_turns) < 3:
+            st.info("当前有效对话轮次不足 3 轮，先在学生端完成多轮追问后再评估。")
+        else:
+            profile = compute_capability_profile(all_messages)
+            st.markdown("**核心能力量化（0-5）**")
+            st.json(profile)
+            st.markdown("**三轮行为诊断**")
+            st.write(f"- 第一轮（核心价值探测）：{user_turns[0].get('content', '')[:120]}")
+            st.write(f"- 第二轮（逻辑压力测试）：{user_turns[1].get('content', '')[:120]}")
+            st.write(f"- 第三轮（落地可行性）：{user_turns[2].get('content', '')[:120]}")
+            st.markdown("**证据引用**")
+            for item in user_turns[:3]:
+                st.write(f'- "{item.get("content", "")[:120]}"')
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with trace_tab:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">证据链（按项目）</div>', unsafe_allow_html=True)
+        payload = load_project_payload(selected_project_id)
+        evidence_items = (payload.get("output") or {}).get("evidence_used", []) if payload else []
+        if evidence_items:
+            for item in evidence_items:
+                st.write(f"- {format_evidence(item)}")
+        else:
+            st.info("该项目暂无可展示证据链（可能来自 mock 数据）。")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_admin_page() -> None:
+    records, _ = load_records_or_mock(PROJECT_ARCHIVE_DIR)
+    users = st.session_state.get("auth_users", [])
+    metrics = build_admin_metrics(records, users)
+
+    st.markdown(
+        """
+        <div class="hero-card">
+          <div class="hero-kicker">A6-5</div>
+          <div class="hero-title">管理端 · 全局看板与权限控制</div>
+          <div class="hero-copy">支持用户角色管理、全局风险监控和越权拦截策略检查。</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    render_summary_metrics(
+        [
+            {"label": "用户总数", "value": str(metrics["total_users"]), "footnote": "系统账号数量"},
+            {"label": "项目总数", "value": str(metrics["total_projects"]), "footnote": "可统计项目数量"},
+            {"label": "高风险项目", "value": str(metrics["high_risk_count"]), "footnote": "全局 high_risk 命中数"},
+        ]
+    )
+
+    user_tab, monitor_tab, guard_tab = st.tabs(["用户与角色", "全局监控", "越权拦截"])
+    with user_tab:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">账号列表</div>', unsafe_allow_html=True)
+        st.dataframe(
+            [
+                {"用户名": item["username"], "角色": item["role"], "显示名": item["display_name"]}
+                for item in users
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        usernames = [item["username"] for item in users]
+        if usernames:
+            pick_col, role_col, action_col = st.columns([1.4, 1.2, 1])
+            selected_username = pick_col.selectbox("选择用户", usernames, key="admin_pick_user")
+            selected_role = role_col.selectbox("目标角色", ["student", "teacher", "admin"], key="admin_pick_role")
+            if action_col.button("更新角色", use_container_width=True, key="admin_update_role", type="primary"):
+                for item in users:
+                    if item["username"] == selected_username:
+                        item["role"] = selected_role
+                st.session_state["auth_users"] = users
+                current = current_user(st.session_state)
+                if current and current["username"] == selected_username:
+                    current["role"] = selected_role
+                    st.session_state["auth_user"] = current
+                    st.session_state["active_section"] = ensure_authorized_section(current["role"], st.session_state.get("active_section"))
+                st.success("角色已更新。")
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with monitor_tab:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">角色分布</div>', unsafe_allow_html=True)
+        st.json(metrics["role_counts"])
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">Top 规则风险</div>', unsafe_allow_html=True)
+        if metrics["top_rules"]:
+            render_rule_bar_chart(metrics["top_rules"])
+        else:
+            st.info("暂无规则触发数据。")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with guard_tab:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">越权拦截状态</div>', unsafe_allow_html=True)
+        st.write("- student 仅可访问学生端")
+        st.write("- teacher 可访问教师端和功能中心")
+        st.write("- admin 可访问管理端、教师端和功能中心")
+        st.write("路由守卫已启用：未授权访问会自动跳回角色默认页面。")
+        attempts = st.session_state.get("unauthorized_attempts", [])
+        st.markdown("**Unauthorized Access Attempt 日志**")
+        if attempts:
+            st.dataframe(attempts, use_container_width=True, hide_index=True)
+        else:
+            st.write("- 暂无越权访问记录。")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_ingest_panel() -> None:
+    st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+    st.markdown('<div class="surface-title">案例 OCR 与索引更新</div>', unsafe_allow_html=True)
+    backend = st.selectbox("OCR Backend", options=["auto", "deepseek_ocr", "tesseract", "pdf_text"], index=0)
+    uploaded_files = st.file_uploader("上传 PDF", type=["pdf"], accept_multiple_files=True)
+    if st.button("保存并执行 Ingest", use_container_width=True, type="primary"):
+        if not uploaded_files:
+            st.warning("请至少上传一个 PDF。")
+        else:
+            DATA_CASES_DIR.mkdir(parents=True, exist_ok=True)
+            saved_files = []
+            for file in uploaded_files:
+                target = DATA_CASES_DIR / file.name
+                target.write_bytes(file.getbuffer())
+                saved_files.append(target.name)
+            stats = ingest_directory(DATA_CASES_DIR, OUTPUT_CASES_DIR, backend_name=backend)
+            st.success(f"Ingest 完成：{stats.documents} 个文档，{stats.pages} 页，{stats.chunks} 个 chunk，backend={stats.backend}")
+            st.write({"saved_files": saved_files})
+    if st.button("重建索引（含结构化案例库）", use_container_width=True, key="rebuild_case_index", type="secondary"):
+        structured_count = export_structured_chunks()
+        stats = ingest_directory(DATA_CASES_DIR, OUTPUT_CASES_DIR, backend_name=backend)
+        st.success(
+            f"索引已重建：PDF 文档 {stats.documents} 个，索引 chunk {stats.chunks} 个，结构化案例 chunk {structured_count} 个。"
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_asset_precheck_panel(rule_engine: RuleEngine) -> None:
+    report = build_asset_scale_report(
+        rule_specs=rule_engine.rule_specs,
+        competition_templates=COMPETITION_TEMPLATES,
+    )
+    rows = report["rows"]
+    pass_count = report["pass_count"]
+    total_count = report["total_count"]
+
+    render_summary_metrics(
+        [
+            {"label": "预检通过项", "value": f"{pass_count}/{total_count}", "footnote": "对照 2.2 资产规模最低要求"},
+            {"label": "案例 PDF 数量", "value": str(report["case_pdf_count"]), "footnote": "data/cases 中 PDF 文件数"},
+            {"label": "结构化案例有效数", "value": str(next((row["当前值"] for row in rows if row["指标"] == "结构化案例数量"), 0)), "footnote": "data/case_library/structured_cases.jsonl"},
+        ]
+    )
+
+    st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+    st.markdown('<div class="surface-title">资产规模预检（Schema & Asset Minimum Scale）</div>', unsafe_allow_html=True)
+    st.dataframe(rows, use_container_width=True, hide_index=True)
+    invalid_case_ids: list[str] = report.get("invalid_case_ids", [])
+    if invalid_case_ids:
+        st.warning(f"发现 {len(invalid_case_ids)} 条结构化案例不合规：{', '.join(invalid_case_ids[:8])}")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_function_center() -> None:
+    rule_engine = build_rule_engine()
+    st.markdown(
+        """
+        <div class="hero-card">
+          <div class="hero-kicker">Function Center</div>
+          <div class="hero-title">约束可视化、案例 OCR 与系统配置</div>
+          <div class="hero-copy">功能中心不承载学生主交互，只保留规则、约束、资产预检、索引和环境配置能力。</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    hyper_tab, ingest_tab, precheck_tab, config_tab = st.tabs(["超图约束可视化", "案例 OCR", "资产预检", "系统配置"])
+    with hyper_tab:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        render_hypergraph_visualization(rule_engine.rule_specs)
+        st.caption("仅展示超图视图，规则详情默认隐藏。")
+        st.markdown("</div>", unsafe_allow_html=True)
+    with ingest_tab:
+        render_ingest_panel()
+    with precheck_tab:
+        render_asset_precheck_panel(rule_engine)
+    with config_tab:
+        render_status_panel()
 
 
 def main() -> None:
-    st.set_page_config(page_title="Startup Edu Agent", page_icon="💬", layout="wide")
+    st.set_page_config(page_title="Startup Edu Agent", page_icon="📘", layout="wide")
     inject_styles()
     ensure_env_loaded()
-    ensure_chat_state()
-    render_global_sidebar()
-    render_topbar()
-    section = st.session_state.get("active_section", "学生端")
+    ensure_app_state()
 
-    if section == "学生端":
-        render_chat_tab()
-        return
-    if section == "教师端":
-        st.markdown('<div class="section-frame">', unsafe_allow_html=True)
-        render_teacher_tab()
+    st.markdown('<div class="page-shell">', unsafe_allow_html=True)
+    if not st.session_state.get("authenticated"):
+        render_login_page()
         st.markdown("</div>", unsafe_allow_html=True)
         return
-    if section == "设置":
-        render_settings_sheet()
-        return
 
-    st.markdown('<div class="section-frame">', unsafe_allow_html=True)
-    render_project_coach_tab()
-    st.divider()
-    render_ingest_tab()
+    user = current_user(st.session_state)
+    role = user["role"] if user else None
+    requested_section = st.session_state.get("active_section")
+    resolved_section = ensure_authorized_section(role, requested_section)
+    if requested_section != resolved_section:
+        log_unauthorized_attempt(role, requested_section, resolved_section)
+    st.session_state["active_section"] = resolved_section
+    render_sidebar()
+
+    section = st.session_state["active_section"]
+    if section == SECTION_STUDENT:
+        render_student_page()
+    elif section == SECTION_TEACHER:
+        render_teacher_page()
+    elif section == SECTION_ADMIN:
+        render_admin_page()
+    else:
+        render_function_center()
     st.markdown("</div>", unsafe_allow_html=True)
 
 

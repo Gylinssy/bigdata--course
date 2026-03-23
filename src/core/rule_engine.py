@@ -46,6 +46,15 @@ RETENTION_KEYWORDS = [
 PILOT_KEYWORDS = [
     "试点", "首批", "样板", "合作方", "试运行", "上线", "验证周期", "验收指标", "退出条件",
 ]
+COMPETITOR_KEYWORDS = [
+    "竞品", "替代", "顺丰", "邮政", "闲鱼", "转转", "notion", "obsidian", "幕布", "巨头", "竞争",
+]
+SUBJECTIVE_KEYWORDS = [
+    "主观推测", "估计", "猜测", "感觉", "应该", "大概", "差不多", "可能会", "基本会",
+]
+SOCIAL_CHANNEL_KEYWORDS = ["抖音", "小红书", "快手", "instagram", "tiktok", "b站", "微博"]
+ENTERPRISE_CUSTOMER_KEYWORDS = ["学校", "医院", "政府", "企业", "机构", "b端", "院系", "教务"]
+HARDWARE_LOGISTICS_KEYWORDS = ["无人机", "物流", "配送", "电池", "硬件", "工厂", "仓储", "运输", "开模"]
 NUMBER_RE = re.compile(r"(-?\d+(?:,\d{3})*(?:\.\d+)?)")
 
 
@@ -69,6 +78,14 @@ class RuleEngine:
             self._check_h13(state, project_text, evidence_map),
             self._check_h14(state, project_text, evidence_map),
             self._check_h15(state, project_text, evidence_map),
+            self._check_h16(state, project_text, evidence_map),
+            self._check_h17(state, project_text, evidence_map),
+            self._check_h18(state, project_text, evidence_map),
+            self._check_h19(state, project_text, evidence_map),
+            self._check_h20(state, project_text, evidence_map),
+            self._check_h21(state, project_text, evidence_map),
+            self._check_h22(state, project_text, evidence_map),
+            self._check_h23(state, project_text, evidence_map),
         ]
 
     def rank(self, rule: RuleResult) -> tuple[int, int]:
@@ -403,6 +420,249 @@ class RuleEngine:
             evidence=evidence,
         )
 
+    def _check_h16(self, state: ProjectState, project_text: str, evidence_map: dict[str, EvidenceItem]) -> RuleResult:
+        evidence = self._collect_evidence(evidence_map, "customer_segment", "channel", "validation_evidence")
+        if not state.customer_segment or not state.channel:
+            return self._rule_result(
+                "H16",
+                status=RuleStatus.WARNING,
+                message="客户画像或渠道信息不足，暂无法验证渠道匹配度。",
+                evidence=evidence,
+            )
+
+        customer_text = " ".join(filter(None, [state.customer_segment, project_text])).lower()
+        channel_text = (state.channel or "").lower()
+        if "农民" in customer_text and self._contains_keywords(channel_text, SOCIAL_CHANNEL_KEYWORDS):
+            return self._rule_result(
+                "H16",
+                status=RuleStatus.FAIL,
+                message="目标客户为农民，但主渠道依赖短视频平台，渠道匹配风险较高。",
+                evidence=evidence,
+            )
+        if self._contains_keywords(customer_text, ENTERPRISE_CUSTOMER_KEYWORDS) and self._contains_keywords(channel_text, SOCIAL_CHANNEL_KEYWORDS):
+            return self._rule_result(
+                "H16",
+                status=RuleStatus.WARNING,
+                message="面向机构/B端客户却主要依赖社媒投流，建议补充直连渠道证据。",
+                evidence=evidence,
+            )
+        return self._rule_result(
+            "H16",
+            status=RuleStatus.PASS,
+            message="客户与渠道关系未发现明显冲突。",
+            evidence=evidence,
+        )
+
+    def _check_h17(self, state: ProjectState, project_text: str, evidence_map: dict[str, EvidenceItem]) -> RuleResult:
+        evidence = self._collect_evidence(evidence_map, "problem", "value_proposition", "validation_evidence")
+        if not state.problem or not state.value_proposition:
+            return self._rule_result(
+                "H17",
+                status=RuleStatus.WARNING,
+                message="问题描述或方案描述不完整，无法形成稳定映射。",
+                evidence=evidence,
+            )
+
+        problem_tokens = self._meaningful_tokens(state.problem)
+        value_tokens = self._meaningful_tokens(state.value_proposition)
+        overlap = len(problem_tokens & value_tokens)
+        improvement_markers = ["降低", "提升", "缩短", "减少", "提高", "解决"]
+        value_text = " ".join(filter(None, [state.value_proposition, project_text]))
+        if overlap == 0 and not self._contains_keywords(value_text, improvement_markers):
+            return self._rule_result(
+                "H17",
+                status=RuleStatus.FAIL,
+                message="方案未给出可验证改进方向，问题-方案映射较弱。",
+                evidence=evidence,
+            )
+        if overlap <= 1:
+            return self._rule_result(
+                "H17",
+                status=RuleStatus.WARNING,
+                message="问题-方案映射仍偏弱，建议补可量化改善指标。",
+                evidence=evidence,
+            )
+        return self._rule_result(
+            "H17",
+            status=RuleStatus.PASS,
+            message="问题与方案映射具备一定一致性。",
+            evidence=evidence,
+        )
+
+    def _check_h18(self, state: ProjectState, project_text: str, evidence_map: dict[str, EvidenceItem]) -> RuleResult:
+        evidence = self._collect_evidence(evidence_map, "competitive_advantage", "customer_segment")
+        text = " ".join(filter(None, [state.competitive_advantage, project_text])).lower()
+        hard_risk_markers = ["没有对手", "唯一的解决方案", "根本没有竞争对手", "我们是第一家"]
+        if self._contains_keywords(text, hard_risk_markers):
+            return self._rule_result(
+                "H18",
+                status=RuleStatus.FAIL,
+                message="出现“无对手”式竞争假设，缺少替代方案与迁移成本分析。",
+                evidence=evidence,
+            )
+        if not state.competitive_advantage and not self._contains_keywords(text, COMPETITOR_KEYWORDS):
+            return self._rule_result(
+                "H18",
+                status=RuleStatus.WARNING,
+                message="竞争与替代方案描述不足，建议补竞品与防御策略。",
+                evidence=evidence,
+            )
+        return self._rule_result(
+            "H18",
+            status=RuleStatus.PASS,
+            message="竞争与替代方案说明基本可用。",
+            evidence=evidence,
+        )
+
+    def _check_h19(self, state: ProjectState, project_text: str, evidence_map: dict[str, EvidenceItem]) -> RuleResult:
+        evidence = self._collect_evidence(evidence_map, "revenue_model", "cost_structure", "payer")
+        if not state.revenue_model:
+            return self._rule_result(
+                "H19",
+                status=RuleStatus.FAIL,
+                message="收入模型缺失，无法评估商业闭环。",
+                evidence=evidence,
+            )
+
+        text = " ".join(filter(None, [state.revenue_model, project_text])).lower()
+        if "免费" in text and not self._contains_keywords(text, ["会员", "订阅", "广告", "抽成", "服务费"]):
+            return self._rule_result(
+                "H19",
+                status=RuleStatus.WARNING,
+                message="当前以免费策略为主但缺少后续变现路径说明。",
+                evidence=evidence,
+            )
+        if re.search(r"(每单|单价).{0,8}(1元|一元)", text) and self._contains_keywords(text, HARDWARE_LOGISTICS_KEYWORDS):
+            return self._rule_result(
+                "H19",
+                status=RuleStatus.FAIL,
+                message="低价收费与重资产场景冲突，收入模型难以覆盖成本。",
+                evidence=evidence,
+            )
+        return self._rule_result(
+            "H19",
+            status=RuleStatus.PASS,
+            message="收入模型未发现明显闭环冲突。",
+            evidence=evidence,
+        )
+
+    def _check_h20(self, state: ProjectState, project_text: str, evidence_map: dict[str, EvidenceItem]) -> RuleResult:
+        evidence = self._collect_evidence(evidence_map, "ltv", "cac", "cost_structure", "revenue_model")
+        text = " ".join(filter(None, [state.cost_structure, state.revenue_model, project_text])).lower()
+        if self._contains_keywords(text, HARDWARE_LOGISTICS_KEYWORDS) and re.search(r"(每单|单价).{0,8}(1元|一元|2元|两元)", text):
+            return self._rule_result(
+                "H20",
+                status=RuleStatus.FAIL,
+                message="重资产成本场景下定价过低，存在成本覆盖不足风险。",
+                evidence=evidence,
+            )
+        if state.ltv is not None and state.cac is not None and state.cac > 0:
+            ratio = state.ltv / state.cac
+            if ratio < 1.5:
+                return self._rule_result(
+                    "H20",
+                    status=RuleStatus.FAIL,
+                    message=f"单位经济冗余不足，LTV/CAC={ratio:.2f}，现金流风险较高。",
+                    evidence=evidence,
+                )
+        if not state.cost_structure:
+            return self._rule_result(
+                "H20",
+                status=RuleStatus.WARNING,
+                message="未明确成本结构，难以判断成本覆盖能力。",
+                evidence=evidence,
+            )
+        return self._rule_result(
+            "H20",
+            status=RuleStatus.PASS,
+            message="成本覆盖能力未发现明显异常。",
+            evidence=evidence,
+        )
+
+    def _check_h21(self, state: ProjectState, project_text: str, evidence_map: dict[str, EvidenceItem]) -> RuleResult:
+        evidence = self._collect_evidence(evidence_map, "compliance_notes", "value_proposition")
+        text = " ".join(filter(None, [project_text, state.compliance_notes])).lower()
+        ip_risk_markers = ["未授权", "省去设计费", "直接批量生产", "扫描仪建出模型", "收集了", "版权"]
+        if self._contains_keywords(text, ip_risk_markers) and not state.compliance_notes:
+            return self._rule_result(
+                "H21",
+                status=RuleStatus.HIGH_RISK,
+                message="检测到版权/授权高风险表述，但缺少合规说明。",
+                evidence=evidence,
+            )
+        if self._contains_keywords(text, ip_risk_markers):
+            return self._rule_result(
+                "H21",
+                status=RuleStatus.WARNING,
+                message="存在版权/授权敏感表述，建议补充正式授权证明。",
+                evidence=evidence,
+            )
+        return self._rule_result(
+            "H21",
+            status=RuleStatus.PASS,
+            message="未发现明显版权授权风险信号。",
+            evidence=evidence,
+        )
+
+    def _check_h22(self, state: ProjectState, project_text: str, evidence_map: dict[str, EvidenceItem]) -> RuleResult:
+        evidence = self._collect_evidence(evidence_map, "validation_evidence", "traction")
+        text = " ".join(filter(None, [state.validation_evidence, state.traction, project_text])).lower()
+        has_validation_signal = self._contains_keywords(text, VALIDATION_KEYWORDS)
+        has_subjective_signal = self._contains_keywords(text, SUBJECTIVE_KEYWORDS)
+        if "主观推测" in text and not has_validation_signal:
+            return self._rule_result(
+                "H22",
+                status=RuleStatus.FAIL,
+                message="关键需求结论基于主观推测，缺少样本验证。",
+                evidence=evidence,
+            )
+        if has_subjective_signal and not has_validation_signal:
+            return self._rule_result(
+                "H22",
+                status=RuleStatus.WARNING,
+                message="证据来源偏主观，建议补样本、问卷或转化数据。",
+                evidence=evidence,
+            )
+        return self._rule_result(
+            "H22",
+            status=RuleStatus.PASS,
+            message="证据来源质量未见明显问题。",
+            evidence=evidence,
+        )
+
+    def _check_h23(self, state: ProjectState, project_text: str, evidence_map: dict[str, EvidenceItem]) -> RuleResult:
+        evidence = self._collect_evidence(evidence_map, "execution_plan", "pilot_plan", "traction")
+        text = " ".join(filter(None, [state.execution_plan, state.pilot_plan, state.traction, project_text])).lower()
+        hard_markers = [
+            "3个月覆盖全国",
+            "三个月覆盖全国",
+            "第2个月越南建厂",
+            "第 2 个月越南建厂",
+            "一个月卖出2万",
+            "上线第一个月卖出2万",
+            "下个月去越南直接买地",
+        ]
+        if self._contains_keywords(text, hard_markers):
+            return self._rule_result(
+                "H23",
+                status=RuleStatus.FAIL,
+                message="里程碑扩张速度与资源条件不匹配，计划可行性较低。",
+                evidence=evidence,
+            )
+        if re.search(r"2名|两名", text) and self._contains_keywords(text, ["覆盖全国", "建厂", "海外"]):
+            return self._rule_result(
+                "H23",
+                status=RuleStatus.WARNING,
+                message="团队规模与扩张目标可能不匹配，建议缩小试点范围。",
+                evidence=evidence,
+            )
+        return self._rule_result(
+            "H23",
+            status=RuleStatus.PASS,
+            message="里程碑规模与资源描述未发现明显冲突。",
+            evidence=evidence,
+        )
+
     @staticmethod
     def _collect_evidence(evidence_map: dict[str, EvidenceItem], *fields: str) -> list[EvidenceItem]:
         return [evidence_map[field] for field in fields if field in evidence_map]
@@ -418,3 +678,7 @@ class RuleEngine:
         if not match:
             return None
         return float(match.group(1).replace(",", ""))
+
+    @staticmethod
+    def _contains_keywords(text: str, keywords: list[str]) -> bool:
+        return any(keyword.lower() in text for keyword in keywords)

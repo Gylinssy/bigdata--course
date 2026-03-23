@@ -26,6 +26,17 @@ class Severity(str, Enum):
     HIGH = "high"
 
 
+class DiagnosisRiskLevel(str, Enum):
+    NORMAL = "normal"
+    WARNING = "warning"
+    HIGH_RISK = "high_risk"
+
+
+class ClaimStatus(str, Enum):
+    SUPPORTED = "supported"
+    NEEDS_VALIDATION = "needs_validation"
+
+
 class ProjectState(BaseModel):
     project_name: str | None = None
     problem: str | None = None
@@ -79,6 +90,38 @@ class RubricScore(BaseModel):
     evidence: list[EvidenceItem] = Field(default_factory=list)
 
 
+class StructuredClaim(BaseModel):
+    field: str
+    statement: str
+    evidence_refs: list[str] = Field(default_factory=list)
+    status: ClaimStatus = ClaimStatus.SUPPORTED
+
+
+class StructuredDiagnosis(BaseModel):
+    diagnosis_summary: str
+    risk_level: DiagnosisRiskLevel
+    triggered_rules: list[str] = Field(default_factory=list)
+    next_action: str
+    claims: list[StructuredClaim] = Field(default_factory=list)
+
+
+class ConstraintViolation(BaseModel):
+    code: str
+    message: str
+
+
+class ConstraintValidationReport(BaseModel):
+    passed: bool
+    violations: list[ConstraintViolation] = Field(default_factory=list)
+    rewrite_attempted: bool = False
+
+
+class RenderedViews(BaseModel):
+    student: str
+    teacher: str
+    debug: str
+
+
 class CoachOutput(BaseModel):
     current_diagnosis: str
     evidence_used: list[EvidenceItem]
@@ -87,6 +130,9 @@ class CoachOutput(BaseModel):
     rubric_scores: list[RubricScore]
     detected_rules: list[RuleResult]
     retrieved_case_evidence: list[EvidenceItem] = Field(default_factory=list)
+    structured_diagnosis: StructuredDiagnosis | None = None
+    constraint_validation: ConstraintValidationReport | None = None
+    rendered_views: RenderedViews | None = None
     markdown_report: str | None = None
 
 

@@ -1,0 +1,8 @@
+rule_id: H20
+required_fields:
+  - ltv
+  - cac
+severity: high
+trigger_message: 单位经济或成本覆盖能力异常，存在财务幻觉风险。
+probing_question: 若不融资，你的现金流还能支撑多久？LTV/CAC 是如何测得的？
+fix_task: 补单位经济测算说明；验收标准：明确 CAC 口径、LTV 假设、回本周期与风险边界。

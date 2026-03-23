@@ -1,6 +1,9 @@
-param()
+﻿param()
 
 $ErrorActionPreference = "Stop"
+[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $projectRoot
@@ -153,8 +156,8 @@ $reasonerOptions = @(
     "custom"
 )
 $runOptions = @(
+    "Streamlit UI (recommended)",
     "CLI demo",
-    "Streamlit UI",
     "FastAPI server"
 )
 
@@ -173,6 +176,10 @@ $defaultReasonerIndex = Get-DefaultIndex -Options $reasonerOptions -CurrentValue
 Write-Host ""
 Write-Host "Startup Edu Agent launcher" -ForegroundColor Green
 Write-Host "Project root: $projectRoot"
+Write-Host "UI flow: login -> Student / Teacher / Admin / Function Center" -ForegroundColor DarkGray
+Write-Host "Mock student: student / student123" -ForegroundColor DarkGray
+Write-Host "Mock teacher: teacher / teacher123" -ForegroundColor DarkGray
+Write-Host "Mock admin: admin / admin123" -ForegroundColor DarkGray
 
 $installChoice = Select-Option -Title "Install or update dependencies first?" -Options @("Yes (recommended)", "No") -DefaultIndex 1
 if ($installChoice -eq 1) {
@@ -221,16 +228,23 @@ Write-Host "  DEEPSEEK_REASONER_MODEL=$reasonerModel"
 Write-Host "  DEEPSEEK_OCR_BASE_URL=$ocrBaseUrl"
 Write-Host "  DEEPSEEK_OCR_MODEL=$ocrModel"
 
-$runChoice = Select-Option -Title "Choose startup mode" -Options $runOptions -DefaultIndex 2
+$runChoice = Select-Option -Title "Choose startup mode" -Options $runOptions -DefaultIndex 1
 
 switch ($runChoice) {
     1 {
-        & py -3.11 scripts/demo_cli.py
-    }
-    2 {
+        Write-Host ""
+        Write-Host "Launching Streamlit UI..." -ForegroundColor Green
+        Write-Host "Open the browser and log in with one of the mock accounts above." -ForegroundColor DarkGray
         & py -3.11 -m streamlit run src/ui/streamlit_app.py
     }
+    2 {
+        Write-Host ""
+        Write-Host "Launching CLI demo..." -ForegroundColor Green
+        & py -3.11 scripts/demo_cli.py
+    }
     3 {
+        Write-Host ""
+        Write-Host "Launching FastAPI server..." -ForegroundColor Green
         & py -3.11 -m uvicorn app.main:app --app-dir src --reload
     }
 }

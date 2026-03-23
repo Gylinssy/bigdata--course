@@ -9,6 +9,7 @@ from pathlib import Path
 
 import fitz
 
+from ..case_library import export_structured_chunks
 from ..retrieval.vector_store import SimpleVectorStore
 from .backends import BaseOCRBackend, OCRPageInput, choose_backend
 
@@ -115,13 +116,20 @@ def ingest_directory(
 
     _write_jsonl(output_dir / "pages.jsonl", all_pages)
     _write_jsonl(output_dir / "chunks.jsonl", all_chunks)
+
+    structured_chunks_path = output_dir / "structured_chunks.jsonl"
+    structured_cases_path = Path("data/case_library/structured_cases.jsonl")
+    structured_count = export_structured_chunks(structured_cases_path, structured_chunks_path)
+    structured_chunks = _read_jsonl(structured_chunks_path) if structured_count > 0 else []
+
+    index_records = all_chunks + structured_chunks
     resolved_index_dir = Path(index_dir or os.getenv("CASE_INDEX_DIR", output_dir / "index"))
-    SimpleVectorStore(resolved_index_dir).build(all_chunks)
+    SimpleVectorStore(resolved_index_dir).build(index_records)
 
     return IngestStats(
         documents=len(pdf_paths),
         pages=len(all_pages),
-        chunks=len(all_chunks),
+        chunks=len(index_records),
         backend=selected_backend.name,
     )
 
@@ -129,3 +137,20 @@ def ingest_directory(
 def _write_jsonl(path: Path, records: list[dict]) -> None:
     lines = [json.dumps(record, ensure_ascii=False) for record in records]
     path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _read_jsonl(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    records: list[dict] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            records.append(payload)
+    return records

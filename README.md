@@ -1,44 +1,71 @@
 # startup-edu-agent
 
-面向创业教育场景的最小原型：`学生项目文本 -> 结构化抽取 -> 超图规则诊断 -> Rubric 评分 -> 只给一个 Next Task`，并支持 `PDF -> OCR -> chunk -> 检索证据链`。
+面向创业教学场景的 Streamlit + FastAPI 原型系统，当前已重构为更接近 ChatGPT 网页端的左侧导航 + 中间工作区布局，并加入 student / teacher / admin 三类 mock 登录与路由守卫。
 
-## 已实现
+## 页面结构
 
-- DeepSeek OpenAI-compatible 客户端封装：`src/core/llm_client.py`
-- 项目抽取、4 条规则、Rubric 评分、唯一下一步任务：`src/core/`
-- OCR ingest：`scripts/ingest_pdfs.py`
-- 本地案例检索与页码证据引用：`src/core/retrieval/`
-- CLI Demo：`scripts/demo_cli.py`
-- FastAPI：`src/app/main.py`
-- 最小测试：`tests/`
+- 学生端
+  - 项目诊断（A2/A3/A4）
+  - 学习辅导与反代写护栏（A1）
+  - 路演评分与动态 Rubric（A5）
+  - 多会话追问区
+- 教师端
+  - 班级看板
+  - 评分可视化
+  - 风险项目与干预建议
+  - 单项目证据溯源
+- 功能中心
+  - 超图约束可视化
+  - 案例 OCR / Ingest
+  - 环境状态与部署配置说明
+- 管理端
+  - 账号与角色管理
+  - 全局风险监控
+  - 越权拦截状态检查
 
-## 目录
+## 当前技术结构
 
-```text
-data/
-  hyper_rules/
-  examples/
-  cases/
-outputs/
-src/
-  app/
-  core/
-scripts/
-tests/
-```
+### 核心逻辑
 
-## 环境
+- 项目诊断：`src/core/pipeline.py`
+- 对话代理：`src/core/chat_agent.py`
+- 规则引擎：`src/core/rule_engine.py`
+- OCR 管线：`src/core/ocr/`
 
-这台机器默认 `python` 指向 3.6，运行时请显式使用 `py -3.11`。
+### UI 层
+
+- Streamlit 入口：`src/ui/streamlit_app.py`
+- 登录与角色守卫：`src/ui/auth.py`
+- 教师端评分数据整理：`src/ui/dashboard_data.py`
+- 可视化组件：`src/ui/visuals.py`
+- 全局样式：`src/ui/styles.py`
+
+## Mock 登录账号
+
+- 学生端
+  - 用户名：`student`
+  - 密码：`student123`
+- 教师端
+  - 用户名：`teacher`
+  - 密码：`teacher123`
+- 管理端
+  - 用户名：`admin`
+  - 密码：`admin123`
+
+后续如果接入真实鉴权，优先替换 `src/ui/auth.py` 中的 mock 认证逻辑即可。
+
+## 安装依赖
+
+建议在 Windows 下显式使用 Python 3.11：
 
 ```powershell
-py -3.11 -m pip install -e .[test,ocr]
+py -3.11 -m pip install -e .[test,ocr,ui]
 Copy-Item .env.example .env
 ```
 
-## DeepSeek 配置
+## 环境变量
 
-`.env` 至少需要：
+`.env` 至少建议包含：
 
 ```env
 DEEPSEEK_API_KEY=sk-xxxx
@@ -51,159 +78,17 @@ VECTOR_STORE=faiss
 CASE_INDEX_DIR=outputs/cases/index
 ```
 
-## 一键启动
-
-Windows 下可直接双击 [start.bat](/F:/超图与智能体/start.bat) 或在 PowerShell 里执行：
-
-```powershell
-.\start.ps1
-```
-
-脚本会依次完成：
-
-- 可选安装 `.[test,ocr,ui]` 依赖
-- 交互式填写 API Key / Base URL
-- 选择普通对话模型和推理模型
-- 生成或更新项目根目录下的 `.env`
-- 一键启动 CLI、Streamlit 或 FastAPI
-
-Python 调用方式与 OpenAI SDK 兼容：
-
-```python
-from openai import OpenAI
-import os
-
-client = OpenAI(
-    api_key=os.environ["DEEPSEEK_API_KEY"],
-    base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-)
-
-resp = client.chat.completions.create(
-    model="deepseek-chat",
-    messages=[
-        {"role": "system", "content": "You are a strict JSON generator."},
-        {"role": "user", "content": "Return JSON with keys: a,b."},
-    ],
-    temperature=0,
-)
-print(resp.choices[0].message.content)
-```
-
-说明：
-
-- 当前 MVP 默认优先走 DeepSeek，若未配置 API Key，会退回到本地启发式抽取，便于离线测试。
-- OCR 优先走 DeepSeek-OCR，其次 Tesseract，再其次 `pdf_text` 兜底。
-
-## 运行 Demo
-
-```powershell
-py -3.11 scripts/demo_cli.py
-```
-
-会输出：
-
-- Current Diagnosis
-- Evidence Used
-- Impact
-- Next Task
-- Triggered Rules
-- Rubric Scores
-
-## 运行 Streamlit 前端
-
-先安装 UI 依赖：
-
-```powershell
-py -3.11 -m pip install -e .[test,ocr,ui]
-```
-
-然后启动：
+## 运行 Streamlit
 
 ```powershell
 py -3.11 -m streamlit run src/ui/streamlit_app.py
 ```
 
-前端包含四个页面：
-
-- 项目诊断：输入项目文本，直接调用 `ProjectCoachPipeline`
-- 对话 Agent：多轮问答，支持 `general/reasoning` 两种模式
-- 案例 OCR：上传 PDF，执行 ingest 并生成 `pages/chunks/index`
-- 教师看板：读取 `outputs/projects/*.json` 做聚合展示
-
-## 批量 OCR Ingest
-
-将案例 PDF 放到 `data/cases/` 后执行：
-
-```powershell
-py -3.11 scripts/ingest_pdfs.py --input-dir data/cases --output-dir outputs/cases --backend auto
-```
-
-输出文件：
-
-- `outputs/cases/pages.jsonl`
-- `outputs/cases/chunks.jsonl`
-- `outputs/cases/index/records.json`
-
-证据引用格式：
-
-```text
-[case: <doc_id> p.<page_no>] "<quote>"
-```
-
-## 启动 API
+## 运行 API
 
 ```powershell
 py -3.11 -m uvicorn app.main:app --app-dir src --reload
 ```
-
-接口：
-
-- `POST /chat/project_coach`
-- `POST /chat/conversation`
-- `POST /cases/ingest`
-- `GET /dashboard/teacher?class_id=xxx`
-
-`/chat/conversation` 支持项目上下文模式，请求体可加：
-
-```json
-{
-  "user_id": "u1",
-  "mode": "reasoning",
-  "include_project_context": true,
-  "project_id": "p1",
-  "messages": [
-    {"role": "user", "content": "结合我当前项目，下一步先做什么？"}
-  ]
-}
-```
-
-API 配置位置：
-
-- 环境变量定义：`.env`（参考 `.env.example`）
-- DeepSeek 客户端读取逻辑：`src/core/llm_client.py`
-- FastAPI 路由：`src/app/api.py`
-
-示例：
-
-```json
-{
-  "user_id": "u1",
-  "project_id": "p1",
-  "project_text": "项目名称：护苗AI\n问题：为中学生提供心理健康筛查和干预建议。\n客户：学校老师和家长。\n价值主张：用问卷和随访提早发现高风险学生。\n渠道：抖音投流获客。\n市场规模：TAM 10000 SAM 5000 SOM 1000\n单位经济：LTV 500 CAC 300"
-}
-```
-
-## OCR 服务建议
-
-如果你有 GPU 并准备部署 DeepSeek-OCR，可将其作为 OpenAI-compatible 服务暴露到 `DEEPSEEK_OCR_BASE_URL`。当前仓库里的 `DeepSeekOCRBackend` 已按这个接口调用。
-
-如果没有 GPU，可安装 Tesseract 并走：
-
-```powershell
-py -3.11 -m pip install pytesseract pillow
-```
-
-若两者都不可用，`pdf_text` 仅适用于可直接抽取文本的数字 PDF，不适合纯扫描件。
 
 ## 测试
 
@@ -211,8 +96,43 @@ py -3.11 -m pip install pytesseract pillow
 py -3.11 -m pytest
 ```
 
-当前已通过：
+## 资产规模预检（2.2）
 
-- `test_rules.py`
-- `test_ocr_ingest_smoke.py`
-- `test_pipeline_smoke.py`
+在功能中心新增了“资产预检”页，会自动检查以下硬性下限：
+
+- Rubric 维度数量（>=10）
+- 赛事模板数量（>=4）
+- KG 节点数量（>=100）
+- 结构化案例数量（>=50）
+- 超边数量（>=20）
+- 规则诊断池数量（>=20）
+- 追问策略池数量（>=15）
+
+当前结构化案例来源文件：`data/case_library/structured_cases.jsonl`。
+
+## 案例库补全工具
+
+新增脚本：`scripts/case_library_manager.py`
+
+```powershell
+# 1) 生成批量录入模板
+py -3.11 scripts/case_library_manager.py template --output data/case_library/new_cases_template.jsonl --count 20
+
+# 2) 校验新案例（字段完整性与格式）
+py -3.11 scripts/case_library_manager.py validate --input data/case_library/new_cases_template.jsonl --verbose
+
+# 3) 合并进主案例库（自动去重 case_id）
+py -3.11 scripts/case_library_manager.py append --input data/case_library/new_cases_template.jsonl --target data/case_library/structured_cases.jsonl
+
+# 4) 导出结构化检索 chunk
+py -3.11 scripts/case_library_manager.py export-chunks --input data/case_library/structured_cases.jsonl --output outputs/cases/structured_chunks.jsonl
+
+# 5) 查看案例库统计
+py -3.11 scripts/case_library_manager.py stats --input data/case_library/structured_cases.jsonl
+```
+
+## 说明
+
+- 学生端已经承接原“输入文本并给出初步诊断结果”的主交互。
+- 功能中心不再承担学生主入口，只保留规则、约束、OCR 和配置功能。
+- 教师端在无真实项目归档时，会使用内置 mock 数据占位，便于先开发和部署界面。

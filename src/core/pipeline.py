@@ -4,10 +4,24 @@ import json
 from collections import Counter
 from pathlib import Path
 
+from .coach_agent import StructuredCoachAgent
 from .evidence import dedupe_evidence, format_evidence
 from .extractor import ProjectExtractor
 from .llm_client import DeepSeekClient
-from .models import CoachOutput, EvidenceItem, ProjectCoachRequest, TeacherDashboard
+from .models import (
+    CoachOutput,
+    ConstraintValidationReport,
+    EvidenceItem,
+    EvidenceSource,
+    ProjectState,
+    ProjectCoachRequest,
+    RenderedViews,
+    RuleResult,
+    RuleStatus,
+    StructuredDiagnosis,
+    TeacherDashboard,
+)
+from .pressure_trace import build_pressure_trace, pressure_trace_to_text
 from .retrieval.case_store import CaseStore
 from .rule_engine import RuleEngine
 from .rubric import RubricScorer
@@ -27,6 +41,7 @@ class ProjectCoachPipeline:
         self.rule_engine = rule_engine or RuleEngine()
         self.rubric_scorer = rubric_scorer or RubricScorer()
         self.case_store = case_store or CaseStore()
+        self.coach_agent = StructuredCoachAgent(client)
         self.archive_dir = Path(archive_dir)
         self.archive_dir.mkdir(parents=True, exist_ok=True)
 
@@ -38,16 +53,39 @@ class ProjectCoachPipeline:
         top_rule = sorted(detected_rules, key=self.rule_engine.rank, reverse=True)[0]
         query = f"{top_rule.rule_id} {top_rule.message} {state.problem or ''} {state.customer_segment or ''}".strip()
         case_evidence = self.case_store.retrieve_cases(query, top_k=3) if self.case_store.has_cases() else []
-
-        evidence_used = dedupe_evidence(top_rule.evidence + case_evidence + extraction_evidence[:2])
+        structured_output, validation_report = self.coach_agent.generate(
+            state=state,
+            rules=detected_rules,
+            extraction_evidence=extraction_evidence,
+            case_evidence=case_evidence,
+            project_text=request.project_text,
+            fallback_task=self._fallback_task(top_rule.rule_id),
+        )
+        evidence_used = self._resolve_evidence(
+            structured_output=structured_output,
+            state=state,
+            detected_rules=detected_rules,
+            extraction_evidence=extraction_evidence,
+            case_evidence=case_evidence,
+        )
+        rendered_views = self._render_views(
+            structured_output,
+            validation_report,
+            detected_rules,
+            case_evidence,
+            rule_specs=self.rule_engine.rule_specs,
+        )
         output = CoachOutput(
-            current_diagnosis=f"{top_rule.rule_id}: {top_rule.message}",
+            current_diagnosis=structured_output.diagnosis_summary,
             evidence_used=evidence_used,
-            impact=self._build_impact(top_rule.message, case_evidence),
-            next_task=top_rule.fix_task or self._fallback_task(top_rule.rule_id),
+            impact=self._build_impact(structured_output.diagnosis_summary, case_evidence),
+            next_task=structured_output.next_action,
             rubric_scores=rubric_scores,
             detected_rules=detected_rules,
             retrieved_case_evidence=case_evidence,
+            structured_diagnosis=structured_output,
+            constraint_validation=validation_report,
+            rendered_views=rendered_views,
         )
         output.markdown_report = self.render_markdown(output)
         self._archive_run(request, state.model_dump(), output.model_dump(mode="json"))
@@ -63,6 +101,7 @@ class ProjectCoachPipeline:
             f"- {rule.rule_id}: {rule.status.value} / {rule.severity.value} / {rule.message}"
             for rule in output.detected_rules
         )
+        rendered_views = output.rendered_views or RenderedViews(student="", teacher="", debug="")
         return (
             "## Current Diagnosis\n"
             f"{output.current_diagnosis}\n\n"
@@ -75,7 +114,13 @@ class ProjectCoachPipeline:
             "## Triggered Rules\n"
             f"{rule_lines}\n\n"
             "## Rubric Scores\n"
-            f"{rubric_lines}"
+            f"{rubric_lines}\n\n"
+            "## Student View\n"
+            f"{rendered_views.student}\n\n"
+            "## Teacher View\n"
+            f"{rendered_views.teacher}\n\n"
+            "## Debug View\n"
+            f"{rendered_views.debug}"
         )
 
     def teacher_dashboard(self) -> TeacherDashboard:
@@ -148,3 +193,93 @@ class ProjectCoachPipeline:
         if case_evidence:
             return f"{rule_message} 类似问题在案例库中也出现过，若不修正会直接拖累验证效率和落地风险。"
         return f"{rule_message} 如果不先处理，后续的市场验证、获客和试点都可能建立在错误假设上。"
+
+    @staticmethod
+    def _render_views(
+        structured_output: StructuredDiagnosis,
+        validation_report: ConstraintValidationReport,
+        detected_rules: list[RuleResult],
+        case_evidence: list[EvidenceItem],
+        rule_specs: dict[str, dict] | None = None,
+    ) -> RenderedViews:
+        student = (
+            f"当前判断：{structured_output.diagnosis_summary}\n"
+            f"下一步：{structured_output.next_action}"
+        )
+        risk_rules = [rule for rule in detected_rules if rule.status != RuleStatus.PASS]
+        teacher = (
+            f"风险等级：{structured_output.risk_level.value}；触发规则：{', '.join(structured_output.triggered_rules)}。\n"
+            f"非通过规则数量：{len(risk_rules)}；建议优先跟进 {structured_output.triggered_rules[0] if structured_output.triggered_rules else 'H1'}。"
+        )
+        trace = build_pressure_trace(
+            detected_rules=detected_rules,
+            rule_specs=rule_specs or {},
+            case_evidence=case_evidence,
+        )
+        trace.update(
+            {
+                "validation_passed": validation_report.passed,
+                "violations": len(validation_report.violations),
+                "rewrite_attempted": validation_report.rewrite_attempted,
+            }
+        )
+        debug = pressure_trace_to_text(trace)
+        return RenderedViews(student=student, teacher=teacher, debug=debug)
+
+    @staticmethod
+    def _resolve_evidence(
+        *,
+        structured_output: StructuredDiagnosis,
+        state: ProjectState,
+        detected_rules: list[RuleResult],
+        extraction_evidence: list[EvidenceItem],
+        case_evidence: list[EvidenceItem],
+    ) -> list[EvidenceItem]:
+        extraction_map = {item.field: item for item in extraction_evidence if item.field}
+        rule_map = {rule.rule_id: rule for rule in detected_rules}
+        case_doc_map = {item.doc_id: item for item in case_evidence if item.doc_id}
+        case_chunk_map = {item.chunk_id: item for item in case_evidence if item.chunk_id}
+        resolved: list[EvidenceItem] = []
+
+        for claim in structured_output.claims:
+            for ref in claim.evidence_refs:
+                if ref.startswith("input:"):
+                    field = ref.split(":", 1)[1]
+                    if field in extraction_map:
+                        resolved.append(extraction_map[field])
+                        continue
+                    value = getattr(state, field, None)
+                    if value not in (None, "", [], {}):
+                        resolved.append(
+                            EvidenceItem(
+                                source=EvidenceSource.USER_INPUT,
+                                quote=f"{field}: {value}",
+                                field=field,
+                            )
+                        )
+                elif ref.startswith("rule:"):
+                    rule_id = ref.split(":", 1)[1]
+                    rule = rule_map.get(rule_id)
+                    if rule:
+                        if rule.evidence:
+                            resolved.extend(rule.evidence)
+                        else:
+                            resolved.append(
+                                EvidenceItem(
+                                    source=EvidenceSource.RULE_RESULT,
+                                    quote=f"{rule.rule_id}: {rule.message}",
+                                    field="rule_assessment",
+                                )
+                            )
+                elif ref.startswith("case:"):
+                    case_id = ref.split(":", 1)[1]
+                    if case_id in case_doc_map:
+                        resolved.append(case_doc_map[case_id])
+                elif ref.startswith("case_chunk:"):
+                    chunk_id = ref.split(":", 1)[1]
+                    if chunk_id in case_chunk_map:
+                        resolved.append(case_chunk_map[chunk_id])
+
+        if not resolved:
+            resolved = extraction_evidence[:2] + case_evidence[:1]
+        return dedupe_evidence(resolved)

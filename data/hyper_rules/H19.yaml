@@ -1,0 +1,8 @@
+rule_id: H19
+required_fields:
+  - revenue_model
+  - cost_structure
+severity: high
+trigger_message: 收入模型与成本结构存在冲突，盈利路径不闭环。
+probing_question: 你的核心收入来源是否覆盖单位交付成本？盈亏平衡点在哪里？
+fix_task: 补收入-成本闭环测算；验收标准：给出单笔收入、单笔成本、毛利与盈亏平衡点。

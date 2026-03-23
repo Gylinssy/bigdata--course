@@ -1,0 +1,8 @@
+rule_id: H17
+required_fields:
+  - problem
+  - value_proposition
+severity: medium
+trigger_message: 问题-方案映射证据不足，难以证明方案能解决关键痛点。
+probing_question: 你提出的方案具体解决了哪个高频痛点？对应可量化改善指标是什么？
+fix_task: 补问题-方案映射表；验收标准：至少 3 条痛点-方案-指标一一对应关系。
