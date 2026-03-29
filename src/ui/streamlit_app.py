@@ -21,10 +21,11 @@ from core.chat_agent import ConversationAgent  # noqa: E402
 from core.case_library import export_structured_chunks  # noqa: E402
 from core.env_utils import load_env_file  # noqa: E402
 from core.evidence import format_evidence  # noqa: E402
-from core.knowledge_graph import load_kg_nodes, retrieve_kg_nodes  # noqa: E402
+from core.learning_agent import LearningTutorAgent  # noqa: E402
 from core.models import ChatMessage, ProjectCoachRequest  # noqa: E402
 from core.ocr.ingest import ingest_directory  # noqa: E402
 from core.pipeline import ProjectCoachPipeline  # noqa: E402
+from core.runtime_log import RuntimeLogger  # noqa: E402
 from core.rule_engine import RuleEngine  # noqa: E402
 from ui.auth import (  # noqa: E402
     ROLE_ADMIN,
@@ -120,6 +121,11 @@ def build_pipeline() -> ProjectCoachPipeline:
 @st.cache_resource
 def build_conversation_agent() -> ConversationAgent:
     return ConversationAgent()
+
+
+@st.cache_resource
+def build_learning_agent() -> LearningTutorAgent:
+    return LearningTutorAgent()
 
 
 @st.cache_resource
@@ -440,12 +446,11 @@ def render_login_page() -> None:
 
         if st.session_state.get("auth_view") == "register":
             register_role = st.selectbox("注册角色", ["student", "teacher"], format_func=lambda item: "学生" if item == "student" else "教师")
-            with st.form("register_form"):
-                display_name = st.text_input("显示名称", placeholder="例如：张同学 / 李老师")
-                username = st.text_input("新用户名", placeholder="至少 3 位")
-                password = st.text_input("新密码", type="password", placeholder="至少 6 位")
-                confirm_password = st.text_input("确认密码", type="password")
-                submitted = st.form_submit_button("注册并登录", use_container_width=True, type="primary")
+            display_name = st.text_input("显示名称", placeholder="例如：张同学 / 李老师", key="register_display_name")
+            username = st.text_input("新用户名", placeholder="至少 3 位", key="register_username")
+            password = st.text_input("新密码", type="password", placeholder="至少 6 位", key="register_password")
+            confirm_password = st.text_input("确认密码", type="password", key="register_confirm_password")
+            submitted = st.button("注册并登录", use_container_width=True, type="primary", key="register_submit")
             if submitted:
                 if password != confirm_password:
                     st.error("两次输入的密码不一致。")
@@ -469,10 +474,9 @@ def render_login_page() -> None:
             )
             default_user = {"student": "student", "teacher": "teacher", "admin": "admin"}[role]
             default_pwd = {"student": "student123", "teacher": "teacher123", "admin": "admin123"}[role]
-            with st.form("login_form"):
-                username = st.text_input("用户名", value=default_user)
-                password = st.text_input("密码", value=default_pwd, type="password")
-                submitted = st.form_submit_button("进入系统", use_container_width=True, type="primary")
+            username = st.text_input("用户名", value=default_user, key="login_username")
+            password = st.text_input("密码", value=default_pwd, type="password", key="login_password")
+            submitted = st.button("进入系统", use_container_width=True, type="primary", key="login_submit")
             st.markdown(
                 """
                 <div class="login-note">
@@ -567,6 +571,23 @@ def render_status_panel() -> None:
         """,
         unsafe_allow_html=True,
     )
+    recent_events = list(reversed(RuntimeLogger().read_recent(limit=12)))
+    with st.expander("最近运行日志", expanded=False):
+        if recent_events:
+            rows = [
+                {
+                    "time": item.get("timestamp"),
+                    "agent": item.get("agent_name"),
+                    "event": item.get("event"),
+                    "level": item.get("level"),
+                    "run_id": item.get("run_id"),
+                }
+                for item in recent_events
+            ]
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+            st.json(recent_events[0])
+        else:
+            st.write("暂无运行日志。")
 
 
 def render_student_diagnosis_panel() -> None:
@@ -732,43 +753,29 @@ def render_student_learning_panel() -> None:
     if submitted:
         if not question.strip():
             st.warning("请先输入问题。")
-        elif should_block_ghostwriting(question):
-            if any(marker in question for marker in EMOTIONAL_MARKERS):
-                st.session_state["learning_reply"] = (
-                    "我不会直接代写可提交文本。先把任务缩小，我们一步一步做。\\n\\n"
-                    f"{build_emotional_redirect_reply()}"
-                )
-                strategy = "anti_ghostwriting_emotional_redirect"
-            else:
-                st.session_state["learning_reply"] = build_ghostwriting_reply()
-                strategy = "anti_ghostwriting"
-            st.session_state["learning_debug"] = {
-                "agent_name": "student_learning_tutor",
-                "strategy_selected": strategy,
-                "retrieved_kg_nodes": [],
-            }
-        elif any(marker in question for marker in EMOTIONAL_MARKERS):
-            st.session_state["learning_reply"] = build_emotional_redirect_reply()
-            st.session_state["learning_debug"] = {
-                "agent_name": "student_learning_tutor",
-                "strategy_selected": "emotional_safety_redirect",
-                "retrieved_kg_nodes": [],
-            }
         else:
+            user = current_user(st.session_state) or {}
             payload = st.session_state.get("student_result") or {}
             request = payload.get("request") if isinstance(payload, dict) else {}
-            project_hint = (request or {}).get("project_id") or "当前项目"
-            kg_nodes = load_kg_nodes()
-            retrieved_nodes = retrieve_kg_nodes(question.strip(), kg_nodes, top_k=6)
-            st.session_state["learning_reply"] = build_learning_tutor_structured_output(
-                question=question.strip(),
-                project_hint=project_hint,
-                kg_nodes=retrieved_nodes,
+            response = build_learning_agent().respond(
+                question.strip(),
+                user_id=user.get("username"),
+                project_id=(request or {}).get("project_id") or st.session_state.get("student_last_project_id"),
+                include_project_context=True,
             )
+            st.session_state["learning_reply"] = response.reply
             st.session_state["learning_debug"] = {
-                "agent_name": "student_learning_tutor",
-                "strategy_selected": "socratic_structured_tutor",
-                "retrieved_kg_nodes": [node.get("name", "unknown") for node in retrieved_nodes],
+                "agent_name": "learning_tutor_agent",
+                "organizer_agent": "learning_response_organizer",
+                "strategy_selected": response.structured_output.mode.value,
+                "topic": response.structured_output.topic,
+                "context_used": response.context_used,
+                "context_project_id": response.context_project_id,
+                "used_llm": response.used_llm,
+                "model": response.model,
+                "retrieved_kg_nodes": response.structured_output.retrieved_kg_nodes,
+                "validation": response.validation.model_dump(mode="json"),
+                "structured_output": response.structured_output.model_dump(mode="json"),
             }
 
     if st.session_state.get("learning_reply"):
@@ -778,7 +785,7 @@ def render_student_learning_panel() -> None:
         st.markdown("</div>", unsafe_allow_html=True)
     learning_debug = st.session_state.get("learning_debug")
     if learning_debug:
-        with st.expander("调试日志（A1-3 KG 检索）", expanded=False):
+        with st.expander("调试日志（A1 Agent + 约束）", expanded=False):
             st.json(learning_debug)
 
 

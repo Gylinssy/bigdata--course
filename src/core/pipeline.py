@@ -3,6 +3,7 @@
 import json
 from collections import Counter
 from pathlib import Path
+from time import perf_counter
 
 from .coach_agent import StructuredCoachAgent
 from .evidence import dedupe_evidence, format_evidence
@@ -23,6 +24,7 @@ from .models import (
 )
 from .pressure_trace import build_pressure_trace, pressure_trace_to_text
 from .retrieval.case_store import CaseStore
+from .runtime_log import RuntimeLogger, new_run_id, preview_text
 from .rule_engine import RuleEngine
 from .rubric import RubricScorer
 
@@ -35,61 +37,118 @@ class ProjectCoachPipeline:
         rubric_scorer: RubricScorer | None = None,
         case_store: CaseStore | None = None,
         archive_dir: Path | str = Path("outputs/projects"),
+        runtime_logger: RuntimeLogger | None = None,
     ) -> None:
         client = DeepSeekClient()
-        self.extractor = extractor or ProjectExtractor(client)
+        self.runtime_logger = runtime_logger or RuntimeLogger()
+        self.extractor = extractor or ProjectExtractor(client, runtime_logger=self.runtime_logger)
         self.rule_engine = rule_engine or RuleEngine()
         self.rubric_scorer = rubric_scorer or RubricScorer()
         self.case_store = case_store or CaseStore()
-        self.coach_agent = StructuredCoachAgent(client)
+        self.coach_agent = StructuredCoachAgent(client, runtime_logger=self.runtime_logger)
         self.archive_dir = Path(archive_dir)
         self.archive_dir.mkdir(parents=True, exist_ok=True)
 
     def run(self, request: ProjectCoachRequest) -> CoachOutput:
-        state, extraction_evidence = self.extractor.extract(request.project_text)
-        detected_rules = self.rule_engine.evaluate(state, request.project_text, extraction_evidence)
-        rubric_scores = self.rubric_scorer.score(state, detected_rules, extraction_evidence)
+        run_id = new_run_id("project-coach")
+        started_at = perf_counter()
+        self.runtime_logger.log(
+            "project_coach_pipeline",
+            "request_started",
+            run_id=run_id,
+            user_id=request.user_id,
+            project_id=request.project_id,
+            project_preview=preview_text(request.project_text, limit=220),
+        )
+        try:
+            state, extraction_evidence = self.extractor.extract(request.project_text, run_id=run_id)
+            self.runtime_logger.log(
+                "project_coach_pipeline",
+                "extraction_completed",
+                run_id=run_id,
+                extracted_field_count=len(state.model_dump(exclude_none=True)),
+                evidence_count=len(extraction_evidence),
+            )
+            detected_rules = self.rule_engine.evaluate(state, request.project_text, extraction_evidence)
+            self.runtime_logger.log(
+                "project_coach_pipeline",
+                "rule_evaluation_completed",
+                run_id=run_id,
+                non_pass_rule_count=len([rule for rule in detected_rules if rule.status != RuleStatus.PASS]),
+                high_risk_rule_count=len([rule for rule in detected_rules if rule.status == RuleStatus.HIGH_RISK]),
+            )
+            rubric_scores = self.rubric_scorer.score(state, detected_rules, extraction_evidence)
 
-        top_rule = sorted(detected_rules, key=self.rule_engine.rank, reverse=True)[0]
-        query = f"{top_rule.rule_id} {top_rule.message} {state.problem or ''} {state.customer_segment or ''}".strip()
-        case_evidence = self.case_store.retrieve_cases(query, top_k=3) if self.case_store.has_cases() else []
-        structured_output, validation_report = self.coach_agent.generate(
-            state=state,
-            rules=detected_rules,
-            extraction_evidence=extraction_evidence,
-            case_evidence=case_evidence,
-            project_text=request.project_text,
-            fallback_task=self._fallback_task(top_rule.rule_id),
-        )
-        evidence_used = self._resolve_evidence(
-            structured_output=structured_output,
-            state=state,
-            detected_rules=detected_rules,
-            extraction_evidence=extraction_evidence,
-            case_evidence=case_evidence,
-        )
-        rendered_views = self._render_views(
-            structured_output,
-            validation_report,
-            detected_rules,
-            case_evidence,
-            rule_specs=self.rule_engine.rule_specs,
-        )
-        output = CoachOutput(
-            current_diagnosis=structured_output.diagnosis_summary,
-            evidence_used=evidence_used,
-            impact=self._build_impact(structured_output.diagnosis_summary, case_evidence),
-            next_task=structured_output.next_action,
-            rubric_scores=rubric_scores,
-            detected_rules=detected_rules,
-            retrieved_case_evidence=case_evidence,
-            structured_diagnosis=structured_output,
-            constraint_validation=validation_report,
-            rendered_views=rendered_views,
-        )
-        output.markdown_report = self.render_markdown(output)
-        self._archive_run(request, state.model_dump(), output.model_dump(mode="json"))
-        return output
+            top_rule = sorted(detected_rules, key=self.rule_engine.rank, reverse=True)[0]
+            query = f"{top_rule.rule_id} {top_rule.message} {state.problem or ''} {state.customer_segment or ''}".strip()
+            case_evidence = self.case_store.retrieve_cases(query, top_k=3) if self.case_store.has_cases() else []
+            self.runtime_logger.log(
+                "project_coach_pipeline",
+                "case_retrieval_completed",
+                run_id=run_id,
+                top_rule=top_rule.rule_id,
+                case_count=len(case_evidence),
+                retrieval_query=preview_text(query),
+            )
+            structured_output, validation_report = self.coach_agent.generate(
+                state=state,
+                rules=detected_rules,
+                extraction_evidence=extraction_evidence,
+                case_evidence=case_evidence,
+                project_text=request.project_text,
+                fallback_task=self._fallback_task(top_rule.rule_id),
+                run_id=run_id,
+            )
+            evidence_used = self._resolve_evidence(
+                structured_output=structured_output,
+                state=state,
+                detected_rules=detected_rules,
+                extraction_evidence=extraction_evidence,
+                case_evidence=case_evidence,
+            )
+            rendered_views = self._render_views(
+                structured_output,
+                validation_report,
+                detected_rules,
+                case_evidence,
+                rule_specs=self.rule_engine.rule_specs,
+            )
+            output = CoachOutput(
+                current_diagnosis=structured_output.diagnosis_summary,
+                evidence_used=evidence_used,
+                impact=self._build_impact(structured_output.diagnosis_summary, case_evidence),
+                next_task=structured_output.next_action,
+                rubric_scores=rubric_scores,
+                detected_rules=detected_rules,
+                retrieved_case_evidence=case_evidence,
+                structured_diagnosis=structured_output,
+                constraint_validation=validation_report,
+                rendered_views=rendered_views,
+            )
+            output.markdown_report = self.render_markdown(output)
+            self._archive_run(request, state.model_dump(), output.model_dump(mode="json"))
+            self.runtime_logger.log(
+                "project_coach_pipeline",
+                "request_completed",
+                run_id=run_id,
+                project_id=request.project_id,
+                validation_passed=validation_report.passed,
+                violation_count=len(validation_report.violations),
+                non_pass_rule_count=len([rule for rule in detected_rules if rule.status != RuleStatus.PASS]),
+                duration_ms=round((perf_counter() - started_at) * 1000, 2),
+            )
+            return output
+        except Exception as exc:
+            self.runtime_logger.log_exception(
+                "project_coach_pipeline",
+                "request_failed",
+                run_id=run_id,
+                error=exc,
+                user_id=request.user_id,
+                project_id=request.project_id,
+                duration_ms=round((perf_counter() - started_at) * 1000, 2),
+            )
+            raise
 
     def render_markdown(self, output: CoachOutput) -> str:
         evidence_lines = "\n".join(f"- {format_evidence(item)}" for item in output.evidence_used)

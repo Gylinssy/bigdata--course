@@ -16,9 +16,11 @@ class DummyOnlineClient:
     default_model = "deepseek-chat"
     reasoner_model = "deepseek-reasoner"
     last_system_prompt = ""
+    last_user_prompt = ""
 
     def chat_text(self, *, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:  # noqa: ARG002
         self.last_system_prompt = system_prompt
+        self.last_user_prompt = user_prompt
         return f"mock-response-{model}"
 
 
@@ -101,3 +103,37 @@ def test_conversation_agent_auto_picks_latest_context_by_user_id(tmp_path: Path)
     )
     assert resp.context_used is True
     assert resp.context_project_id == "new"
+
+
+def test_conversation_agent_does_not_force_rule_reference_on_general_question():
+    llm = DummyOnlineClient()
+    agent = ConversationAgent(llm_client=llm)
+
+    agent.chat([ChatMessage(role="user", content="Please analyze the user's main pain point.")])
+
+    assert "exactly 20 implemented rules" not in llm.last_system_prompt
+
+
+def test_conversation_agent_adds_rule_reference_only_for_rule_questions():
+    llm = DummyOnlineClient()
+    agent = ConversationAgent(llm_client=llm)
+
+    agent.chat([ChatMessage(role="user", content="How many rules are implemented right now?")])
+
+    assert "exactly 20 implemented rules" in llm.last_system_prompt
+
+
+def test_conversation_agent_promotes_system_messages_to_system_prompt():
+    llm = DummyOnlineClient()
+    agent = ConversationAgent(llm_client=llm)
+
+    agent.chat(
+        [
+            ChatMessage(role="system", content="Keep the answer skeptical and evidence-first."),
+            ChatMessage(role="user", content="Please analyze the user's main pain point."),
+        ]
+    )
+
+    assert "ADDITIONAL_SYSTEM_NOTES" in llm.last_system_prompt
+    assert "Keep the answer skeptical and evidence-first." in llm.last_system_prompt
+    assert "Keep the answer skeptical and evidence-first." not in llm.last_user_prompt

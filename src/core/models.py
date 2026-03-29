@@ -163,6 +163,53 @@ class ChatResponse(BaseModel):
     context_project_id: str | None = None
 
 
+class LearningMode(str, Enum):
+    TUTOR = "tutor"
+    ANTI_GHOSTWRITING = "anti_ghostwriting"
+    EMOTIONAL_REDIRECT = "emotional_redirect"
+    CLARIFICATION = "clarification"
+
+
+class LearningConstraintViolation(BaseModel):
+    code: str
+    message: str
+
+
+class LearningConstraintReport(BaseModel):
+    passed: bool
+    violations: list[LearningConstraintViolation] = Field(default_factory=list)
+
+
+class LearningTutorOutput(BaseModel):
+    mode: LearningMode
+    topic: str
+    answer_summary: str
+    project_grounding: str
+    common_mistakes: list[str] = Field(default_factory=list)
+    practice_task: str
+    expected_artifact: str
+    follow_up_question: str
+    retrieved_kg_nodes: list[str] = Field(default_factory=list)
+    context_project_id: str | None = None
+
+
+class LearningTutorRequest(BaseModel):
+    question: str
+    user_id: str | None = None
+    project_id: str | None = None
+    include_project_context: bool = True
+
+
+class LearningTutorResponse(BaseModel):
+    reply: str
+    structured_output: LearningTutorOutput
+    validation: LearningConstraintReport
+    model: str
+    used_llm: bool
+    context_used: bool = False
+    context_project_id: str | None = None
+
+
 class IngestRequest(BaseModel):
     input_dir: str = "data/cases"
     output_dir: str = "outputs/cases"

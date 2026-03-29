@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from core.chat_agent import ConversationAgent
-from core.models import ChatRequest, IngestRequest, ProjectCoachRequest, TeacherDashboard
+from core.learning_agent import LearningTutorAgent
+from core.models import ChatRequest, IngestRequest, LearningTutorRequest, ProjectCoachRequest, TeacherDashboard
 from core.ocr.ingest import ingest_directory
 from core.pipeline import ProjectCoachPipeline
 
@@ -11,6 +12,7 @@ from core.pipeline import ProjectCoachPipeline
 router = APIRouter()
 pipeline = ProjectCoachPipeline()
 conversation_agent = ConversationAgent()
+learning_tutor_agent = LearningTutorAgent()
 
 
 @router.post("/chat/project_coach")
@@ -26,6 +28,16 @@ def chat_conversation(request: ChatRequest):
         user_id=request.user_id,
         include_project_context=request.include_project_context,
         project_id=request.project_id,
+    )
+
+
+@router.post("/chat/learning_tutor")
+def chat_learning_tutor(request: LearningTutorRequest):
+    return learning_tutor_agent.respond(
+        request.question,
+        user_id=request.user_id,
+        project_id=request.project_id,
+        include_project_context=request.include_project_context,
     )
 
 

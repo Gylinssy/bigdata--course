@@ -16,6 +16,7 @@ from .models import (
     StructuredClaim,
     StructuredDiagnosis,
 )
+from .runtime_log import RuntimeLogger
 
 PRIMARY_RULE_PRIORITY = {
     RuleStatus.HIGH_RISK: 4,
@@ -36,10 +37,12 @@ class StructuredCoachAgent:
         llm_client: DeepSeekClient | None = None,
         validator: HypergraphConstraintValidator | None = None,
         max_rewrite_attempts: int = 1,
+        runtime_logger: RuntimeLogger | None = None,
     ) -> None:
         self.llm_client = llm_client or DeepSeekClient()
         self.validator = validator or HypergraphConstraintValidator()
         self.max_rewrite_attempts = max_rewrite_attempts
+        self.runtime_logger = runtime_logger or RuntimeLogger()
 
     def generate(
         self,
@@ -50,6 +53,7 @@ class StructuredCoachAgent:
         case_evidence: list[EvidenceItem],
         project_text: str,
         fallback_task: str,
+        run_id: str | None = None,
     ) -> tuple[StructuredDiagnosis, ConstraintValidationReport]:
         diagnosis = self._build_initial_output(
             state=state,
@@ -67,21 +71,49 @@ class StructuredCoachAgent:
             rewrite_attempted=False,
         )
         if report.passed:
+            self.runtime_logger.log(
+                "structured_coach_agent",
+                "validation_completed",
+                run_id=run_id,
+                passed=True,
+                violation_count=0,
+            )
             return diagnosis, report
 
         rewrite_attempted = False
         current = diagnosis
+        self.runtime_logger.log(
+            "structured_coach_agent",
+            "validation_failed",
+            run_id=run_id,
+            passed=False,
+            violation_count=len(report.violations),
+            violations=report.violations,
+        )
         if self.llm_client.available and self.max_rewrite_attempts > 0:
             rewrite_attempted = True
             for _ in range(self.max_rewrite_attempts):
+                self.runtime_logger.log(
+                    "structured_coach_agent",
+                    "rewrite_started",
+                    run_id=run_id,
+                    violation_count=len(report.violations),
+                )
                 rewritten = self._rewrite_with_llm(
                     current=current,
                     report=report,
                     state=state,
                     rules=rules,
                     project_text=project_text,
+                    run_id=run_id,
                 )
                 if not rewritten:
+                    self.runtime_logger.log(
+                        "structured_coach_agent",
+                        "rewrite_skipped",
+                        run_id=run_id,
+                        reason="llm_returned_none",
+                    )
                     break
                 current = rewritten
                 report = self.validator.validate(
@@ -91,6 +123,13 @@ class StructuredCoachAgent:
                     extraction_evidence=extraction_evidence,
                     case_evidence=case_evidence,
                     rewrite_attempted=True,
+                )
+                self.runtime_logger.log(
+                    "structured_coach_agent",
+                    "rewrite_completed",
+                    run_id=run_id,
+                    passed=report.passed,
+                    violation_count=len(report.violations),
                 )
                 if report.passed:
                     return current, report
@@ -111,7 +150,21 @@ class StructuredCoachAgent:
             rewrite_attempted=rewrite_attempted,
         )
         if repaired_report.passed:
+            self.runtime_logger.log(
+                "structured_coach_agent",
+                "repair_completed",
+                run_id=run_id,
+                passed=True,
+                violation_count=len(repaired_report.violations),
+            )
             return repaired, repaired_report
+        self.runtime_logger.log(
+            "structured_coach_agent",
+            "repair_completed",
+            run_id=run_id,
+            passed=False,
+            violation_count=len(report.violations),
+        )
         return current, report
 
     def _build_initial_output(
@@ -178,6 +231,7 @@ class StructuredCoachAgent:
         state: ProjectState,
         rules: list[RuleResult],
         project_text: str,
+        run_id: str | None = None,
     ) -> StructuredDiagnosis | None:
         if not report.violations:
             return None
@@ -220,7 +274,14 @@ class StructuredCoachAgent:
                 temperature=0.0,
             )
             return StructuredDiagnosis.model_validate(data)
-        except Exception:
+        except Exception as exc:
+            self.runtime_logger.log_exception(
+                "structured_coach_agent",
+                "rewrite_failed",
+                run_id=run_id,
+                error=exc,
+                violation_count=len(report.violations),
+            )
             return None
 
     @staticmethod

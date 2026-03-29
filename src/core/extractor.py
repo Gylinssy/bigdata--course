@@ -5,6 +5,7 @@ from typing import Any
 
 from .llm_client import DeepSeekClient, load_prompt
 from .models import EvidenceItem, EvidenceSource, ProjectState
+from .runtime_log import RuntimeLogger, preview_text
 
 
 FIELD_LABELS: dict[str, list[str]] = {
@@ -36,17 +37,43 @@ NUMERIC_LABELS: dict[str, list[str]] = {
 
 
 class ProjectExtractor:
-    def __init__(self, llm_client: DeepSeekClient | None = None, enable_llm: bool = True) -> None:
+    def __init__(
+        self,
+        llm_client: DeepSeekClient | None = None,
+        enable_llm: bool = True,
+        runtime_logger: RuntimeLogger | None = None,
+    ) -> None:
         self.llm_client = llm_client or DeepSeekClient()
         self.enable_llm = enable_llm
+        self.runtime_logger = runtime_logger or RuntimeLogger()
 
-    def extract(self, project_text: str) -> tuple[ProjectState, list[EvidenceItem]]:
+    def extract(self, project_text: str, *, run_id: str | None = None) -> tuple[ProjectState, list[EvidenceItem]]:
         heuristic_state, evidence = self._heuristic_extract(project_text)
+        self.runtime_logger.log(
+            "project_extractor",
+            "heuristic_extraction_completed",
+            run_id=run_id,
+            extracted_field_count=len(heuristic_state.model_dump(exclude_none=True)),
+            evidence_count=len(evidence),
+            project_preview=preview_text(project_text),
+        )
         if self.enable_llm and self.llm_client.available:
             try:
                 refined = self._llm_refine(project_text, heuristic_state)
+                self.runtime_logger.log(
+                    "project_extractor",
+                    "llm_refine_completed",
+                    run_id=run_id,
+                    refined_field_count=len(refined),
+                )
                 return heuristic_state.model_copy(update=refined), evidence
-            except Exception:
+            except Exception as exc:
+                self.runtime_logger.log_exception(
+                    "project_extractor",
+                    "llm_refine_failed",
+                    run_id=run_id,
+                    error=exc,
+                )
                 return heuristic_state, evidence
         return heuristic_state, evidence
 
