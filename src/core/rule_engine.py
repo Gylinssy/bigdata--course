@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 from .models import EvidenceItem, ProjectState, RuleResult, RuleStatus, Severity
+from .numeric_utils import coerce_number
 
 
 RULE_PRIORITY = {
@@ -179,14 +180,17 @@ class RuleEngine:
 
     def _check_h4(self, state: ProjectState, evidence_map: dict[str, EvidenceItem]) -> RuleResult:
         evidence = self._collect_evidence(evidence_map, "tam", "sam", "som")
-        if state.tam is None or state.sam is None or state.som is None:
-            return self._rule_result("H4", status=RuleStatus.FAIL, message="缺少 TAM/SAM/SOM 关键数据。", evidence=evidence)
-        if state.tam >= state.sam >= state.som:
+        tam = coerce_number(state.tam)
+        sam = coerce_number(state.sam)
+        som = coerce_number(state.som)
+        if tam is None or sam is None or som is None:
+            return self._rule_result("H4", status=RuleStatus.FAIL, message="缺少或无法解析 TAM/SAM/SOM 数值。", evidence=evidence)
+        if tam >= sam >= som:
             return self._rule_result("H4", status=RuleStatus.PASS, message="TAM/SAM/SOM 逻辑成立。", evidence=evidence)
         return self._rule_result(
             "H4",
             status=RuleStatus.FAIL,
-            message=f"当前市场规模顺序异常：TAM={state.tam}, SAM={state.sam}, SOM={state.som}。",
+            message=f"当前市场规模顺序异常：TAM={tam}, SAM={sam}, SOM={som}。",
             evidence=evidence,
         )
 
@@ -220,11 +224,18 @@ class RuleEngine:
 
     def _check_h8(self, state: ProjectState, evidence_map: dict[str, EvidenceItem]) -> RuleResult:
         evidence = self._collect_evidence(evidence_map, "ltv", "cac")
-        if state.ltv is None or state.cac is None:
-            return self._rule_result("H8", status=RuleStatus.FAIL, message="缺少 LTV/CAC 数据，无法判断单位经济。", evidence=evidence)
-        if state.cac == 0:
+        ltv = coerce_number(state.ltv)
+        cac = coerce_number(state.cac)
+        if ltv is None or cac is None:
+            return self._rule_result(
+                "H8",
+                status=RuleStatus.FAIL,
+                message="LTV/CAC 缺失或不是有效数值，无法判断单位经济。",
+                evidence=evidence,
+            )
+        if cac == 0:
             return self._rule_result("H8", status=RuleStatus.WARNING, message="CAC 为 0，数据口径异常，需要重算。", evidence=evidence)
-        ratio = state.ltv / state.cac
+        ratio = ltv / cac
         if ratio >= 3:
             return self._rule_result("H8", status=RuleStatus.PASS, message=f"单位经济成立，LTV/CAC={ratio:.2f}。", evidence=evidence)
         return self._rule_result("H8", status=RuleStatus.FAIL, message=f"单位经济不足，LTV/CAC={ratio:.2f}，低于 3。", evidence=evidence)
@@ -371,11 +382,12 @@ class RuleEngine:
                 evidence=evidence,
             )
 
-        if state.som is not None and target > state.som:
+        som = coerce_number(state.som)
+        if som is not None and target > som:
             return self._rule_result(
                 "H14",
                 status=RuleStatus.FAIL,
-                message=f"增长目标({target:g})超过SOM({state.som:g})，增长假设不成立。",
+                message=f"增长目标({target:g})超过SOM({som:g})，增长假设不成立。",
                 evidence=evidence,
             )
 
@@ -556,8 +568,10 @@ class RuleEngine:
                 message="重资产成本场景下定价过低，存在成本覆盖不足风险。",
                 evidence=evidence,
             )
-        if state.ltv is not None and state.cac is not None and state.cac > 0:
-            ratio = state.ltv / state.cac
+        ltv = coerce_number(state.ltv)
+        cac = coerce_number(state.cac)
+        if ltv is not None and cac is not None and cac > 0:
+            ratio = ltv / cac
             if ratio < 1.5:
                 return self._rule_result(
                     "H20",

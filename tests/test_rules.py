@@ -20,6 +20,13 @@ def test_h4_requires_tam_sam_som_order():
     assert result.status == RuleStatus.FAIL
 
 
+def test_h4_accepts_numeric_strings_with_units():
+    engine = RuleEngine()
+    state = ProjectState.model_construct(tam="10万亿", sam="5万亿", som="1万亿")
+    result = next(rule for rule in engine.evaluate(state, "", []) if rule.rule_id == "H4")
+    assert result.status == RuleStatus.PASS
+
+
 def test_h5_warns_when_payer_is_not_explained():
     engine = RuleEngine()
     evidence = [
@@ -39,6 +46,13 @@ def test_h8_requires_healthy_ltv_cac_ratio():
     ]
     state = ProjectState(ltv=100, cac=50)
     result = next(rule for rule in engine.evaluate(state, "", evidence) if rule.rule_id == "H8")
+    assert result.status == RuleStatus.FAIL
+
+
+def test_h8_handles_non_numeric_strings_without_crashing():
+    engine = RuleEngine()
+    state = ProjectState.model_construct(ltv="极高", cac="几乎为0")
+    result = next(rule for rule in engine.evaluate(state, "", []) if rule.rule_id == "H8")
     assert result.status == RuleStatus.FAIL
 
 

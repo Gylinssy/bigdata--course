@@ -5,6 +5,7 @@ from typing import Any
 
 from .llm_client import DeepSeekClient, load_prompt
 from .models import EvidenceItem, EvidenceSource, ProjectState
+from .numeric_utils import coerce_number
 from .runtime_log import RuntimeLogger, preview_text
 
 
@@ -60,13 +61,16 @@ class ProjectExtractor:
         if self.enable_llm and self.llm_client.available:
             try:
                 refined = self._llm_refine(project_text, heuristic_state)
+                safe_state, rejected_numeric_fields = self._merge_refined_state(heuristic_state, refined)
                 self.runtime_logger.log(
                     "project_extractor",
                     "llm_refine_completed",
                     run_id=run_id,
                     refined_field_count=len(refined),
+                    accepted_field_count=len(safe_state.model_dump(exclude_none=True)),
+                    rejected_numeric_fields=rejected_numeric_fields,
                 )
-                return heuristic_state.model_copy(update=refined), evidence
+                return safe_state, evidence
             except Exception as exc:
                 self.runtime_logger.log_exception(
                     "project_extractor",
@@ -138,6 +142,37 @@ class ProjectExtractor:
         return self.llm_client.chat_json(system_prompt=system_prompt, user_prompt=user_prompt)
 
     @staticmethod
+    def _merge_refined_state(heuristic_state: ProjectState, refined: dict[str, Any]) -> tuple[ProjectState, list[str]]:
+        merged = heuristic_state.model_dump()
+        rejected_numeric_fields: list[str] = []
+
+        for field_name, field_info in ProjectState.model_fields.items():
+            if field_name not in refined:
+                continue
+
+            value = refined[field_name]
+            if field_name in NUMERIC_LABELS:
+                coerced = coerce_number(value)
+                if coerced is None:
+                    rejected_numeric_fields.append(field_name)
+                    continue
+                merged[field_name] = coerced
+                continue
+
+            if value is None:
+                continue
+            if isinstance(value, str):
+                stripped = value.strip()
+                if stripped:
+                    merged[field_name] = stripped
+                continue
+
+            if field_info.annotation == str | None:
+                merged[field_name] = str(value)
+
+        return ProjectState.model_validate(merged), rejected_numeric_fields
+
+    @staticmethod
     def _extract_labeled_field(text: str, labels: list[str]) -> tuple[str | None, str | None, int | None, int | None]:
         for label in labels:
             pattern = re.compile(rf"{re.escape(label)}\s*[:：]\s*(.+)", re.IGNORECASE)
@@ -152,21 +187,36 @@ class ProjectExtractor:
         text: str,
         labels: list[str],
     ) -> tuple[float | None, str | None, int | None, int | None]:
+        numeric_label_pattern = "|".join(
+            re.escape(alias)
+            for alias_list in NUMERIC_LABELS.values()
+            for alias in alias_list
+        )
         for label in labels:
-            pattern = re.compile(rf"{re.escape(label)}\s*[:：]?\s*(-?\d+(?:,\d{{3}})*(?:\.\d+)?)", re.IGNORECASE)
+            pattern = re.compile(
+                rf"{re.escape(label)}\s*[:：=]?\s*(?P<value>.*?)(?=(?:{numeric_label_pattern})\b|[，,。；;\n]|$)",
+                re.IGNORECASE,
+            )
             match = pattern.search(text)
             if match:
-                number = float(match.group(1).replace(",", ""))
-                return number, match.group(0).strip(), match.start(), match.end()
+                value_text = match.group("value").strip()
+                number = coerce_number(value_text)
+                if number is not None:
+                    return number, match.group(0).strip(), match.start(), match.end()
 
         market_line = re.search(r"市场规模[:：]?\s*(.+)", text)
         if market_line:
             snippet = market_line.group(1)
             for label in labels:
-                inline = re.search(rf"{re.escape(label)}\s*(-?\d+(?:,\d{{3}})*(?:\.\d+)?)", snippet, re.IGNORECASE)
+                inline = re.search(
+                    rf"{re.escape(label)}\s*[:：=]?\s*(?P<value>.*?)(?=(?:{numeric_label_pattern})\b|[，,。；;\n]|$)",
+                    snippet,
+                    re.IGNORECASE,
+                )
                 if inline:
-                    number = float(inline.group(1).replace(",", ""))
-                    start = market_line.start(1) + inline.start()
-                    end = market_line.start(1) + inline.end()
-                    return number, inline.group(0), start, end
+                    number = coerce_number(inline.group("value"))
+                    if number is not None:
+                        start = market_line.start(1) + inline.start()
+                        end = market_line.start(1) + inline.end()
+                        return number, inline.group(0).strip(), start, end
         return None, None, None, None
