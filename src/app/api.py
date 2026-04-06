@@ -3,8 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from core.chat_agent import ConversationAgent
+from core.idea_agent import IdeaCoachAgent
 from core.learning_agent import LearningTutorAgent
-from core.models import ChatRequest, IngestRequest, LearningTutorRequest, ProjectCoachRequest, TeacherDashboard
+from core.models import ChatRequest, IdeaCoachRequest, IngestRequest, LearningTutorRequest, ProjectCoachRequest, TeacherDashboard
 from core.ocr.ingest import ingest_directory
 from core.pipeline import ProjectCoachPipeline
 
@@ -12,6 +13,7 @@ from core.pipeline import ProjectCoachPipeline
 router = APIRouter()
 pipeline = ProjectCoachPipeline()
 conversation_agent = ConversationAgent()
+idea_coach_agent = IdeaCoachAgent()
 learning_tutor_agent = LearningTutorAgent()
 
 
@@ -29,6 +31,13 @@ def chat_conversation(request: ChatRequest):
         include_project_context=request.include_project_context,
         project_id=request.project_id,
     )
+
+
+@router.post("/chat/idea_coach")
+def chat_idea_coach(request: IdeaCoachRequest):
+    if request.workspace is None:
+        return idea_coach_agent.bootstrap(request.latest_input)
+    return idea_coach_agent.step(request.workspace, request.latest_input)
 
 
 @router.post("/chat/learning_tutor")

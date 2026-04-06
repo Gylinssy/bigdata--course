@@ -97,6 +97,18 @@ def test_learning_agent_asks_for_clarification_on_ambiguous_question():
     assert "米米" in response.reply
 
 
+def test_learning_agent_uses_general_definition_tone_for_unmatched_project_term():
+    agent = LearningTutorAgent(llm_client=DummyClient())
+
+    response = agent.respond("什么是闭环设计，它在我的项目里有什么影响？", include_project_context=False)
+
+    assert response.structured_output.mode == LearningMode.TUTOR
+    assert response.structured_output.topic == "围绕“闭环设计”的概念解释"
+    assert response.structured_output.answer_summary.startswith("一般来讲，“闭环设计”")
+    assert "它和你的项目还没有建立明确关联" in response.reply
+    assert "它在你的项目里对应哪个环节" in response.reply
+
+
 def test_learning_agent_does_not_force_project_context_on_ambiguous_question(tmp_path: Path):
     archive = tmp_path / "p1.json"
     archive.write_text(

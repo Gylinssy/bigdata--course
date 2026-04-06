@@ -1,0 +1,275 @@
+{
+  "request": {
+    "user_id": "student",
+    "project_text": "啦啦啦啦啦",
+    "project_id": "实验项目一"
+  },
+  "state": {
+    "project_name": "啦啦啦啦啦",
+    "problem": null,
+    "customer_segment": null,
+    "value_proposition": null,
+    "channel": null,
+    "revenue_model": null,
+    "cost_structure": null,
+    "traction": null,
+    "tam": null,
+    "sam": null,
+    "som": null,
+    "ltv": null,
+    "cac": null,
+    "compliance_notes": null,
+    "payer": null,
+    "validation_evidence": null,
+    "execution_plan": null,
+    "competitive_advantage": null,
+    "retention_strategy": null,
+    "growth_target": null,
+    "pilot_plan": null
+  },
+  "output": {
+    "current_diagnosis": "缺少 TAM/SAM/SOM 关键数据。",
+    "evidence_used": [
+      {
+        "source": "rule_result",
+        "quote": "H4: 缺少 TAM/SAM/SOM 关键数据。",
+        "start": null,
+        "end": null,
+        "field": "rule_assessment",
+        "doc_id": null,
+        "page_no": null,
+        "chunk_id": null
+      },
+      {
+        "source": "user_input",
+        "quote": "啦啦啦啦啦",
+        "start": 0,
+        "end": 5,
+        "field": "project_name",
+        "doc_id": null,
+        "page_no": null,
+        "chunk_id": null
+      },
+      {
+        "source": "case_pdf",
+        "quote": "This case shows a school health startup validating compliance risks.",
+        "start": null,
+        "end": null,
+        "field": null,
+        "doc_id": "case1",
+        "page_no": 1,
+        "chunk_id": "case1-p1-c1"
+      }
+    ],
+    "impact": "缺少 TAM/SAM/SOM 关键数据。 类似问题在案例库中也出现过，若不修正会直接拖累验证效率和落地风险。",
+    "next_task": "重新计算 TAM、SAM、SOM 并补充计算公式；验收标准：明确数据来源，且满足 TAM>=SAM>=SOM。",
+    "rubric_scores": [
+      {
+        "rubric_id": "R1",
+        "name": "Problem Clarity",
+        "score": 1,
+        "rationale": "问题定义清晰且有验证证据时，项目方向更可靠。",
+        "evidence": []
+      },
+      {
+        "rubric_id": "R2",
+        "name": "Value Delivery",
+        "score": 2,
+        "rationale": "客户、渠道、付费链和竞争差异共同决定价值交付是否成立。",
+        "evidence": []
+      },
+      {
+        "rubric_id": "R3",
+        "name": "Market Logic",
+        "score": 2,
+        "rationale": "市场规模与增长目标必须同时可计算且相互一致。",
+        "evidence": []
+      },
+      {
+        "rubric_id": "R4",
+        "name": "Unit Economics",
+        "score": 2,
+        "rationale": "单位经济与留存机制共同决定增长是否健康可持续。",
+        "evidence": []
+      },
+      {
+        "rubric_id": "R5",
+        "name": "Risk Readiness",
+        "score": 2,
+        "rationale": "执行路径、试点计划和合规准备度共同影响真实落地风险。",
+        "evidence": []
+      }
+    ],
+    "detected_rules": [
+      {
+        "rule_id": "H1",
+        "status": "fail",
+        "severity": "medium",
+        "message": "客户-价值-渠道链路不完整，缺少: customer_segment, value_proposition, channel。",
+        "probing_question": "你的目标客户最常出现在哪个渠道？他们愿意为哪一个结果买单？",
+        "fix_task": "访谈 5 位目标客户，并把客户画像、核心痛点、对应渠道写成 1 张三列表；验收标准：每列至少 5 条、能一一对应。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H2",
+        "status": "fail",
+        "severity": "medium",
+        "message": "缺少问题定义或价值主张，无法判断问题-方案是否匹配。",
+        "probing_question": "你的方案具体消除了哪个痛点？用户在使用前后会发生什么变化？",
+        "fix_task": "补一张“痛点-方案-结果”对照表；验收标准：至少列出 3 个痛点，每个痛点对应 1 个方案动作和 1 个可观察结果。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H4",
+        "status": "fail",
+        "severity": "high",
+        "message": "缺少 TAM/SAM/SOM 关键数据。",
+        "probing_question": "你的市场规模拆分依据是什么？每一层是否可由公开数据或假设推导支撑？",
+        "fix_task": "重新计算 TAM、SAM、SOM 并补充计算公式；验收标准：明确数据来源，且满足 TAM>=SAM>=SOM。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H5",
+        "status": "fail",
+        "severity": "medium",
+        "message": "缺少客户对象或收入模式，无法判断付费逻辑。",
+        "probing_question": "谁在使用、谁从中受益、谁真正付费、谁做购买决策？",
+        "fix_task": "补一页“使用者-受益者-付费者-决策者”关系图；验收标准：四类角色明确，且与收入模式一致。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H8",
+        "status": "fail",
+        "severity": "high",
+        "message": "缺少 LTV/CAC 数据，无法判断单位经济。",
+        "probing_question": "你的获客成本包含哪些渠道支出？用户生命周期价值是如何估算的？",
+        "fix_task": "重算 LTV 与 CAC，并明确成本口径；验收标准：给出公式和样本假设，且 LTV>=3*CAC。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H9",
+        "status": "fail",
+        "severity": "high",
+        "message": "没有看到访谈、问卷、试点或转化数据，需求判断缺少验证证据。",
+        "probing_question": "你有哪些访谈、问卷、试点、转化或留存数据来支持需求存在？",
+        "fix_task": "补最小需求验证证据；验收标准：至少提供 5 份访谈、1 轮问卷或 1 次试点数据中的任意一种。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H10",
+        "status": "fail",
+        "severity": "high",
+        "message": "没有执行计划或阶段进展描述，方案落地路径不清晰。",
+        "probing_question": "这个方案由谁来做、分几步做、每一步何时完成、首个可交付版本是什么？",
+        "fix_task": "补执行计划与版本路径；验收标准：明确负责人、时间节点、里程碑和首版范围四项。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H11",
+        "status": "pass",
+        "severity": "high",
+        "message": "未发现明显的敏感领域合规缺口，或已提供合规说明。",
+        "probing_question": "涉及的数据、用户与决策风险分别是什么？你准备如何合规处理？",
+        "fix_task": "补一页合规与伦理说明；验收标准：覆盖数据来源、用户授权、风险边界、责任人四项。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H12",
+        "status": "fail",
+        "severity": "medium",
+        "message": "没有看到清晰的竞品对比或差异化说明，竞争优势不明确。",
+        "probing_question": "你的方案相对现有替代方案，在哪三个维度更优且难以被快速复制？",
+        "fix_task": "补一页竞品对比与差异化说明；验收标准：至少3个竞品维度（效果、成本、交付速度）并给出你的优势证据。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H13",
+        "status": "fail",
+        "severity": "medium",
+        "message": "没有看到留存或复购机制描述，增长可能依赖一次性获客。",
+        "probing_question": "用户为什么会持续使用或重复付费？你的留存机制和触发频率是什么？",
+        "fix_task": "补留存机制设计；验收标准：明确留存触发点、周期、目标留存率三个要素。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H14",
+        "status": "fail",
+        "severity": "high",
+        "message": "未提供阶段增长目标，无法校验增长假设是否可行。",
+        "probing_question": "你的阶段增长目标是多少？与SOM和渠道产能是否一致？",
+        "fix_task": "补增长目标分解表；验收标准：给出季度目标、渠道贡献占比，并与SOM约束保持一致。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H15",
+        "status": "fail",
+        "severity": "high",
+        "message": "试点路径不明确，缺少首批对象、进入路径或验收节奏。",
+        "probing_question": "第一批试点对象是谁？通过什么路径进入？多长时间判断成败？",
+        "fix_task": "补试点落地计划；验收标准：明确试点对象、启动时间、关键指标、退出条件四项。",
+        "evidence": []
+      }
+    ],
+    "retrieved_case_evidence": [
+      {
+        "source": "case_pdf",
+        "quote": "This case shows a school health startup validating compliance risks.",
+        "start": null,
+        "end": null,
+        "field": null,
+        "doc_id": "case1",
+        "page_no": 1,
+        "chunk_id": "case1-p1-c1"
+      }
+    ],
+    "structured_diagnosis": {
+      "diagnosis_summary": "缺少 TAM/SAM/SOM 关键数据。",
+      "risk_level": "warning",
+      "triggered_rules": [
+        "H1",
+        "H2",
+        "H4",
+        "H5",
+        "H8",
+        "H9",
+        "H10",
+        "H12",
+        "H13",
+        "H14",
+        "H15"
+      ],
+      "next_action": "重新计算 TAM、SAM、SOM 并补充计算公式；验收标准：明确数据来源，且满足 TAM>=SAM>=SOM。",
+      "claims": [
+        {
+          "field": "rule_assessment",
+          "statement": "缺少 TAM/SAM/SOM 关键数据。",
+          "evidence_refs": [
+            "rule:H4",
+            "input:project_name",
+            "case:case1"
+          ],
+          "status": "supported"
+        },
+        {
+          "field": "next_action",
+          "statement": "建议先执行：重新计算 TAM、SAM、SOM 并补充计算公式；验收标准：明确数据来源，且满足 TAM>=SAM>=SOM。",
+          "evidence_refs": [
+            "rule:H4"
+          ],
+          "status": "supported"
+        }
+      ]
+    },
+    "constraint_validation": {
+      "passed": true,
+      "violations": [],
+      "rewrite_attempted": false
+    },
+    "rendered_views": {
+      "student": "当前判断：缺少 TAM/SAM/SOM 关键数据。\n下一步：重新计算 TAM、SAM、SOM 并补充计算公式；验收标准：明确数据来源，且满足 TAM>=SAM>=SOM。",
+      "teacher": "风险等级：warning；触发规则：H1, H2, H4, H5, H8, H9, H10, H12, H13, H14, H15。\n非通过规则数量：11；建议优先跟进 H1。",
+      "debug": "validation_passed=True; violations=0; rewrite_attempted=False"
+    },
+    "markdown_report": "## Current Diagnosis\n缺少 TAM/SAM/SOM 关键数据。\n\n## Evidence Used\n- rule_assessment: H4: 缺少 TAM/SAM/SOM 关键数据。\n- project_name: 啦啦啦啦啦\n- [case: case1 p.1] \"This case shows a school health startup validating compliance risks.\"\n\n## Impact\n缺少 TAM/SAM/SOM 关键数据。 类似问题在案例库中也出现过，若不修正会直接拖累验证效率和落地风险。\n\n## Next Task\n重新计算 TAM、SAM、SOM 并补充计算公式；验收标准：明确数据来源，且满足 TAM>=SAM>=SOM。\n\n## Triggered Rules\n- H1: fail / medium / 客户-价值-渠道链路不完整，缺少: customer_segment, value_proposition, channel。\n- H2: fail / medium / 缺少问题定义或价值主张，无法判断问题-方案是否匹配。\n- H4: fail / high / 缺少 TAM/SAM/SOM 关键数据。\n- H5: fail / medium / 缺少客户对象或收入模式，无法判断付费逻辑。\n- H8: fail / high / 缺少 LTV/CAC 数据，无法判断单位经济。\n- H9: fail / high / 没有看到访谈、问卷、试点或转化数据，需求判断缺少验证证据。\n- H10: fail / high / 没有执行计划或阶段进展描述，方案落地路径不清晰。\n- H11: pass / high / 未发现明显的敏感领域合规缺口，或已提供合规说明。\n- H12: fail / medium / 没有看到清晰的竞品对比或差异化说明，竞争优势不明确。\n- H13: fail / medium / 没有看到留存或复购机制描述，增长可能依赖一次性获客。\n- H14: fail / high / 未提供阶段增长目标，无法校验增长假设是否可行。\n- H15: fail / high / 试点路径不明确，缺少首批对象、进入路径或验收节奏。\n\n## Rubric Scores\n- R1 Problem Clarity: 1/5 (问题定义清晰且有验证证据时，项目方向更可靠。)\n- R2 Value Delivery: 2/5 (客户、渠道、付费链和竞争差异共同决定价值交付是否成立。)\n- R3 Market Logic: 2/5 (市场规模与增长目标必须同时可计算且相互一致。)\n- R4 Unit Economics: 2/5 (单位经济与留存机制共同决定增长是否健康可持续。)\n- R5 Risk Readiness: 2/5 (执行路径、试点计划和合规准备度共同影响真实落地风险。)\n\n## Student View\n当前判断：缺少 TAM/SAM/SOM 关键数据。\n下一步：重新计算 TAM、SAM、SOM 并补充计算公式；验收标准：明确数据来源，且满足 TAM>=SAM>=SOM。\n\n## Teacher View\n风险等级：warning；触发规则：H1, H2, H4, H5, H8, H9, H10, H12, H13, H14, H15。\n非通过规则数量：11；建议优先跟进 H1。\n\n## Debug View\nvalidation_passed=True; violations=0; rewrite_attempted=False"
+  }
+}

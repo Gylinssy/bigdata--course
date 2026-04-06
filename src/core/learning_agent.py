@@ -285,6 +285,16 @@ class LearningResponseOrganizerAgent:
         if context_used and output.project_grounding.strip():
             grounding_lines.append(f"结合当前项目：{output.project_grounding}")
 
+        if output.topic.startswith("围绕“"):
+            return (
+                f"{output.answer_summary}\n\n"
+                + ("\n\n".join(grounding_lines) + "\n\n" if grounding_lines else "")
+                + f"容易出现的问题：\n{mistakes}\n\n"
+                + f"你可以先补充：{output.practice_task}\n"
+                + f"最好补成：{output.expected_artifact}\n"
+                + f"我先确认一下：{output.follow_up_question}"
+            )
+
         return (
             f"先直接回答你的问题：{output.answer_summary}\n\n"
             + ("\n\n".join(grounding_lines) + "\n\n" if grounding_lines else "")
@@ -571,6 +581,9 @@ class LearningTutorAgent:
             "5. 如果学生问题本身含义不清，请直接要求澄清，不要擅自把问题改写成 TAM/SAM/CAC 等创业术语。\n"
             "6. common_mistakes 至少 2 条。\n"
             "7. 输出内容简洁、可执行。\n\n"
+            "8. 如果学生是在问一个暂时无法判断是否和项目直接相关的概念，优先采用这种结构："
+            "先用“一般来讲，X 是……”说明通用含义，再说明“按当前信息它和项目关联还不明确”，"
+            "最后追问它在项目里的具体影响。\n\n"
             f"Schema:\n{json.dumps(schema, ensure_ascii=False, indent=2)}\n\n"
             f"学生问题:\n{question}\n\n"
             f"项目上下文:\n{json.dumps(context or {}, ensure_ascii=False, indent=2)}\n\n"
@@ -776,7 +789,7 @@ class LearningTutorAgent:
         topic_spec = self._match_topic(normalized)
         has_startup_keyword = self._contains_any(normalized, GENERAL_STARTUP_KEYWORDS)
         focus = self._extract_focus_phrase(question)
-        is_ambiguous = len(focus) <= 4 or not has_startup_keyword
+        is_ambiguous = len(focus) <= 2 or not has_startup_keyword
 
         if self._contains_any(normalized, GHOSTWRITING_MARKERS) or self._contains_any(question, EMOTIONAL_MARKERS):
             return {
@@ -840,22 +853,51 @@ class LearningTutorAgent:
             if focus.startswith(prefix):
                 focus = focus[len(prefix):].strip()
                 break
+        separators = (
+            "，",
+            ",",
+            "。",
+            "？",
+            "?",
+            "；",
+            ";",
+            "在我的项目里",
+            "在我项目里",
+            "在项目里",
+            "在项目中",
+            "对我的项目",
+            "对项目",
+            "应该怎么",
+            "应该如何",
+            "怎么",
+            "如何",
+            "有什么影响",
+            "有何影响",
+            "有什么作用",
+            "有什么用",
+            "是什么意思",
+            "是指什么",
+            "是什么",
+        )
+        split_points = [focus.find(separator) for separator in separators if focus.find(separator) > 0]
+        if split_points:
+            focus = focus[: min(split_points)].strip()
         focus = focus.strip("？?。！!：:，,；; ")
         return focus or question.strip()
 
     def _build_question_focused_default_topic(self, question: str) -> dict[str, object]:
         focus = self._extract_focus_phrase(question)
         return {
-            "topic": f"围绕“{focus}”的学习澄清",
-            "answer_summary": f"我会先围绕“{focus}”本身回答，不额外跳到 TAM、CAC 或别的概念；只有当它们和你的问题直接相关时才会提到。",
+            "topic": f"围绕“{focus}”的概念解释",
+            "answer_summary": f"一般来讲，“{focus}”是一个需要先说清定义、边界和作用的概念；但按你目前给到的信息来看，它和你的项目还没有建立明确关联，所以我先不把它直接套进项目分析里。",
             "mistakes": [
-                "问题太短，导致概念边界不清楚。",
-                "一句话里混了多个目标，不知道是在问定义、用途还是写法。",
-                "还没确认术语指代，就直接往项目分析上套。",
+                "只抛出概念名，没有说明自己到底想确认定义、场景还是影响。",
+                f"还没说清“{focus}”在项目里对应哪个环节，就直接判断它的作用。",
+                "一上来就把抽象术语硬套进项目分析，反而把真实问题说模糊了。",
             ],
-            "practice_task": f"把你的问题补成一句完整话：你想知道“{focus}”的定义、作用，还是它在项目里的具体写法？",
-            "expected_artifact": f"一句澄清后的问题，例如：{focus} 在我的项目里是什么意思？或者：{focus} 应该怎么写进 BP？",
-            "follow_up_question": f"你现在最想让我先回答“{focus}”的哪一部分：定义、作用，还是项目用法？",
+            "practice_task": f"你可以详细补两部分信息：第一，你这里说的“{focus}”具体是指什么；第二，它在你的项目里对应哪个环节、会带来什么影响。",
+            "expected_artifact": f"一句补充后的完整问题，例如：一般来讲，“{focus}”是指什么？它在我的项目里对应什么，会影响哪一部分？",
+            "follow_up_question": f"你想先让我解释“{focus}”的一般含义，还是先判断它在你项目里的具体影响？",
         }
 
     @staticmethod

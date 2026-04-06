@@ -1,0 +1,1018 @@
+{
+  "request": {
+    "user_id": "student",
+    "project_text": "项目名称：NoteMind\n问题：学生笔记杂乱、复习效率低。\n客户：大学生与研究生。\n价值主张：上传PDF/PPT/录音后自动摘要并生成Anki卡片。\n渠道：B站和小红书学习博主软广，高校学习交流群。\n收入模式：前期完全免费，10万活跃用户后再考虑会员19元/月。\n竞争优势：相比Notion/Obsidian更聚焦考试场景。\n市场规模：TAM 10000000，SAM 1000000，SOM 100000。\n成本结构：大模型API和服务器成本。\n执行计划：1个月MVP，2-3个月100人内测，6个月公开版上线。",
+    "project_id": "D004"
+  },
+  "state": {
+    "project_name": "NoteMind",
+    "problem": "学生笔记杂乱、复习效率低。",
+    "customer_segment": "大学生与研究生。",
+    "value_proposition": "上传PDF/PPT/录音后自动摘要并生成Anki卡片。",
+    "channel": "B站和小红书学习博主软广，高校学习交流群。",
+    "revenue_model": "前期完全免费，10万活跃用户后再考虑会员19元/月。",
+    "cost_structure": "大模型API和服务器成本。",
+    "traction": null,
+    "tam": 10000000.0,
+    "sam": 1000000.0,
+    "som": 100000.0,
+    "ltv": null,
+    "cac": null,
+    "compliance_notes": null,
+    "payer": null,
+    "validation_evidence": null,
+    "execution_plan": "1个月MVP，2-3个月100人内测，6个月公开版上线。",
+    "competitive_advantage": "相比Notion/Obsidian更聚焦考试场景。",
+    "retention_strategy": null,
+    "growth_target": null,
+    "pilot_plan": null
+  },
+  "output": {
+    "current_diagnosis": "命中敏感领域关键词 ['学生']，但未看到合规说明。",
+    "evidence_used": [
+      {
+        "source": "extracted_field",
+        "quote": "问题：学生笔记杂乱、复习效率低。",
+        "start": 14,
+        "end": 30,
+        "field": "problem",
+        "doc_id": null,
+        "page_no": null,
+        "chunk_id": null
+      },
+      {
+        "source": "extracted_field",
+        "quote": "客户：大学生与研究生。",
+        "start": 31,
+        "end": 42,
+        "field": "customer_segment",
+        "doc_id": null,
+        "page_no": null,
+        "chunk_id": null
+      },
+      {
+        "source": "case_pdf",
+        "quote": "title: MediTriage 校园健康分诊助手\ndomain: healthtech\nstage: pilot\noutcome: failed\nsummary: 产品试图基于学生自评问卷给出健康风险建议，但未完成数据授权与伦理审查。项目在试点前被学校暂停。\nfailure_reasons: 敏感数据合规准备不足; 风险告知机制缺失\nlessons: 医疗/健康类项目必须先走合规清单; 上线前准备伦理审查与告知文本\nkey_metrics: signed_schools=",
+        "start": null,
+        "end": null,
+        "field": null,
+        "doc_id": "structured_case::C005",
+        "page_no": 1,
+        "chunk_id": "structured-C005"
+      }
+    ],
+    "impact": "命中敏感领域关键词 ['学生']，但未看到合规说明。 类似问题在案例库中也出现过，若不修正会直接拖累验证效率和落地风险。",
+    "next_task": "补一页合规与伦理说明；验收标准：覆盖数据来源、用户授权、风险边界、责任人四项。",
+    "rubric_scores": [
+      {
+        "rubric_id": "R1",
+        "name": "Problem Clarity",
+        "score": 2,
+        "rationale": "问题定义与用户画像越清晰，越容易形成有效验证闭环。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "问题：学生笔记杂乱、复习效率低。",
+            "start": 14,
+            "end": 30,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：上传PDF/PPT/录音后自动摘要并生成Anki卡片。",
+            "start": 43,
+            "end": 75,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "客户：大学生与研究生。",
+            "start": 31,
+            "end": 42,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R2",
+        "name": "User-Channel Fit",
+        "score": 4,
+        "rationale": "渠道和人群匹配决定获客效率与预算利用率。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "客户：大学生与研究生。",
+            "start": 31,
+            "end": 42,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：上传PDF/PPT/录音后自动摘要并生成Anki卡片。",
+            "start": 43,
+            "end": 75,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "渠道：B站和小红书学习博主软广，高校学习交流群。",
+            "start": 76,
+            "end": 100,
+            "field": "channel",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R3",
+        "name": "Value Proposition Fit",
+        "score": 2,
+        "rationale": "价值主张必须直接映射痛点，且具备可量化改善目标。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "问题：学生笔记杂乱、复习效率低。",
+            "start": 14,
+            "end": 30,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：上传PDF/PPT/录音后自动摘要并生成Anki卡片。",
+            "start": 43,
+            "end": 75,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R4",
+        "name": "Competition & Moat",
+        "score": 3,
+        "rationale": "竞争认知与护城河建设决定项目长期防御能力。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "竞争优势：相比Notion/Obsidian更聚焦考试场景。",
+            "start": 133,
+            "end": 163,
+            "field": "competitive_advantage",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：上传PDF/PPT/录音后自动摘要并生成Anki卡片。",
+            "start": 43,
+            "end": 75,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "客户：大学生与研究生。",
+            "start": 31,
+            "end": 42,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R5",
+        "name": "Business Model",
+        "score": 4,
+        "rationale": "收入结构与付费角色需要形成可解释的商业闭环。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "客户：大学生与研究生。",
+            "start": 31,
+            "end": 42,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "收入模式：前期完全免费，10万活跃用户后再考虑会员19元/月。",
+            "start": 101,
+            "end": 132,
+            "field": "revenue_model",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "成本结构：大模型API和服务器成本。",
+            "start": 206,
+            "end": 224,
+            "field": "cost_structure",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R6",
+        "name": "Unit Economics",
+        "score": 2,
+        "rationale": "单位经济与成本覆盖能力决定项目是否可持续。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "成本结构：大模型API和服务器成本。",
+            "start": 206,
+            "end": 224,
+            "field": "cost_structure",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "收入模式：前期完全免费，10万活跃用户后再考虑会员19元/月。",
+            "start": 101,
+            "end": 132,
+            "field": "revenue_model",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R7",
+        "name": "Execution Plan",
+        "score": 2,
+        "rationale": "执行与试点计划需要与团队资源规模相匹配。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "执行计划：1个月MVP，2-3个月100人内测，6个月公开版上线。",
+            "start": 225,
+            "end": 258,
+            "field": "execution_plan",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "成本结构：大模型API和服务器成本。",
+            "start": 206,
+            "end": 224,
+            "field": "cost_structure",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R8",
+        "name": "Compliance & Ethics",
+        "score": 1,
+        "rationale": "敏感场景中的合规和伦理边界决定项目上线风险。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "问题：学生笔记杂乱、复习效率低。",
+            "start": 14,
+            "end": 30,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "客户：大学生与研究生。",
+            "start": 31,
+            "end": 42,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：上传PDF/PPT/录音后自动摘要并生成Anki卡片。",
+            "start": 43,
+            "end": 75,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R9",
+        "name": "Evidence Quality",
+        "score": 3,
+        "rationale": "核心结论必须由可追溯证据支撑，避免主观幻觉。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "问题：学生笔记杂乱、复习效率低。",
+            "start": 14,
+            "end": 30,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rubric_id": "R10",
+        "name": "Growth Feasibility",
+        "score": 2,
+        "rationale": "增长目标必须与市场空间、节奏与资源约束一致。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "收入模式：前期完全免费，10万活跃用户后再考虑会员19元/月。",
+            "start": 101,
+            "end": 132,
+            "field": "revenue_model",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "SOM 100000",
+            "start": 194,
+            "end": 204,
+            "field": "som",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "渠道：B站和小红书学习博主软广，高校学习交流群。",
+            "start": 76,
+            "end": 100,
+            "field": "channel",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "执行计划：1个月MVP，2-3个月100人内测，6个月公开版上线。",
+            "start": 225,
+            "end": 258,
+            "field": "execution_plan",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      }
+    ],
+    "detected_rules": [
+      {
+        "rule_id": "H1",
+        "status": "pass",
+        "severity": "medium",
+        "message": "客户、价值主张与渠道链路基本完整。",
+        "probing_question": "你的目标客户最常出现在哪个渠道？他们愿意为哪一个结果买单？",
+        "fix_task": "访谈 5 位目标客户，并把客户画像、核心痛点、对应渠道写成 1 张三列表；验收标准：每列至少 5 条、能一一对应。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "客户：大学生与研究生。",
+            "start": 31,
+            "end": 42,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：上传PDF/PPT/录音后自动摘要并生成Anki卡片。",
+            "start": 43,
+            "end": 75,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "渠道：B站和小红书学习博主软广，高校学习交流群。",
+            "start": 76,
+            "end": 100,
+            "field": "channel",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H2",
+        "status": "warning",
+        "severity": "medium",
+        "message": "问题定义与方案描述几乎没有关键词重合，需警惕方案没有直接回应痛点。",
+        "probing_question": "你的方案具体消除了哪个痛点？用户在使用前后会发生什么变化？",
+        "fix_task": "补一张“痛点-方案-结果”对照表；验收标准：至少列出 3 个痛点，每个痛点对应 1 个方案动作和 1 个可观察结果。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "问题：学生笔记杂乱、复习效率低。",
+            "start": 14,
+            "end": 30,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：上传PDF/PPT/录音后自动摘要并生成Anki卡片。",
+            "start": 43,
+            "end": 75,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H4",
+        "status": "pass",
+        "severity": "high",
+        "message": "TAM/SAM/SOM 逻辑成立。",
+        "probing_question": "你的市场规模拆分依据是什么？每一层是否可由公开数据或假设推导支撑？",
+        "fix_task": "重新计算 TAM、SAM、SOM 并补充计算公式；验收标准：明确数据来源，且满足 TAM>=SAM>=SOM。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "TAM 10000000",
+            "start": 169,
+            "end": 181,
+            "field": "tam",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "SAM 1000000",
+            "start": 182,
+            "end": 193,
+            "field": "sam",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "SOM 100000",
+            "start": 194,
+            "end": 204,
+            "field": "som",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H5",
+        "status": "pass",
+        "severity": "medium",
+        "message": "当前付费逻辑至少有基本说明，未发现明显的角色错位。",
+        "probing_question": "谁在使用、谁从中受益、谁真正付费、谁做购买决策？",
+        "fix_task": "补一页“使用者-受益者-付费者-决策者”关系图；验收标准：四类角色明确，且与收入模式一致。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "客户：大学生与研究生。",
+            "start": 31,
+            "end": 42,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "收入模式：前期完全免费，10万活跃用户后再考虑会员19元/月。",
+            "start": 101,
+            "end": 132,
+            "field": "revenue_model",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H8",
+        "status": "fail",
+        "severity": "high",
+        "message": "缺少 LTV/CAC 数据，无法判断单位经济。",
+        "probing_question": "你的获客成本包含哪些渠道支出？用户生命周期价值是如何估算的？",
+        "fix_task": "重算 LTV 与 CAC，并明确成本口径；验收标准：给出公式和样本假设，且 LTV>=3*CAC。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H9",
+        "status": "warning",
+        "severity": "high",
+        "message": "已有少量验证信号，但证据仍偏弱，建议补更明确的用户验证数据。",
+        "probing_question": "你有哪些访谈、问卷、试点、转化或留存数据来支持需求存在？",
+        "fix_task": "补最小需求验证证据；验收标准：至少提供 5 份访谈、1 轮问卷或 1 次试点数据中的任意一种。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "问题：学生笔记杂乱、复习效率低。",
+            "start": 14,
+            "end": 30,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H10",
+        "status": "pass",
+        "severity": "high",
+        "message": "执行路径已有基本说明，具备初步落地计划。",
+        "probing_question": "这个方案由谁来做、分几步做、每一步何时完成、首个可交付版本是什么？",
+        "fix_task": "补执行计划与版本路径；验收标准：明确负责人、时间节点、里程碑和首版范围四项。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "执行计划：1个月MVP，2-3个月100人内测，6个月公开版上线。",
+            "start": 225,
+            "end": 258,
+            "field": "execution_plan",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "成本结构：大模型API和服务器成本。",
+            "start": 206,
+            "end": 224,
+            "field": "cost_structure",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H11",
+        "status": "high_risk",
+        "severity": "high",
+        "message": "命中敏感领域关键词 ['学生']，但未看到合规说明。",
+        "probing_question": "涉及的数据、用户与决策风险分别是什么？你准备如何合规处理？",
+        "fix_task": "补一页合规与伦理说明；验收标准：覆盖数据来源、用户授权、风险边界、责任人四项。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "问题：学生笔记杂乱、复习效率低。",
+            "start": 14,
+            "end": 30,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "客户：大学生与研究生。",
+            "start": 31,
+            "end": 42,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H12",
+        "status": "warning",
+        "severity": "medium",
+        "message": "存在差异化描述，但竞争壁垒证据偏弱。",
+        "probing_question": "你的方案相对现有替代方案，在哪三个维度更优且难以被快速复制？",
+        "fix_task": "补一页竞品对比与差异化说明；验收标准：至少3个竞品维度（效果、成本、交付速度）并给出你的优势证据。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "竞争优势：相比Notion/Obsidian更聚焦考试场景。",
+            "start": 133,
+            "end": 163,
+            "field": "competitive_advantage",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：上传PDF/PPT/录音后自动摘要并生成Anki卡片。",
+            "start": 43,
+            "end": 75,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H13",
+        "status": "fail",
+        "severity": "medium",
+        "message": "没有看到留存或复购机制描述，增长可能依赖一次性获客。",
+        "probing_question": "用户为什么会持续使用或重复付费？你的留存机制和触发频率是什么？",
+        "fix_task": "补留存机制设计；验收标准：明确留存触发点、周期、目标留存率三个要素。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "收入模式：前期完全免费，10万活跃用户后再考虑会员19元/月。",
+            "start": 101,
+            "end": 132,
+            "field": "revenue_model",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H14",
+        "status": "fail",
+        "severity": "high",
+        "message": "未提供阶段增长目标，无法校验增长假设是否可行。",
+        "probing_question": "你的阶段增长目标是多少？与SOM和渠道产能是否一致？",
+        "fix_task": "补增长目标分解表；验收标准：给出季度目标、渠道贡献占比，并与SOM约束保持一致。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "SOM 100000",
+            "start": 194,
+            "end": 204,
+            "field": "som",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "渠道：B站和小红书学习博主软广，高校学习交流群。",
+            "start": 76,
+            "end": 100,
+            "field": "channel",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H15",
+        "status": "fail",
+        "severity": "high",
+        "message": "试点路径不明确，缺少首批对象、进入路径或验收节奏。",
+        "probing_question": "第一批试点对象是谁？通过什么路径进入？多长时间判断成败？",
+        "fix_task": "补试点落地计划；验收标准：明确试点对象、启动时间、关键指标、退出条件四项。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "执行计划：1个月MVP，2-3个月100人内测，6个月公开版上线。",
+            "start": 225,
+            "end": 258,
+            "field": "execution_plan",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H16",
+        "status": "pass",
+        "severity": "medium",
+        "message": "客户与渠道关系未发现明显冲突。",
+        "probing_question": "你的目标人群是否真实活跃在当前渠道？是否有渠道触达与转化证据？",
+        "fix_task": "补渠道-人群匹配验证；验收标准：至少 1 个渠道触达数据 + 1 个转化证据 + 1 个失败渠道复盘。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "客户：大学生与研究生。",
+            "start": 31,
+            "end": 42,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "渠道：B站和小红书学习博主软广，高校学习交流群。",
+            "start": 76,
+            "end": 100,
+            "field": "channel",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H17",
+        "status": "fail",
+        "severity": "medium",
+        "message": "方案未给出可验证改进方向，问题-方案映射较弱。",
+        "probing_question": "你提出的方案具体解决了哪个高频痛点？对应可量化改善指标是什么？",
+        "fix_task": "补问题-方案映射表；验收标准：至少 3 条痛点-方案-指标一一对应关系。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "问题：学生笔记杂乱、复习效率低。",
+            "start": 14,
+            "end": 30,
+            "field": "problem",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：上传PDF/PPT/录音后自动摘要并生成Anki卡片。",
+            "start": 43,
+            "end": 75,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H18",
+        "status": "pass",
+        "severity": "high",
+        "message": "竞争与替代方案说明基本可用。",
+        "probing_question": "你的隐形替代方案是什么？用户为何不会继续使用现有方案？",
+        "fix_task": "补竞品与替代方案矩阵；验收标准：至少 3 个直接竞品 + 3 个替代方案 + 对应防御策略。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "竞争优势：相比Notion/Obsidian更聚焦考试场景。",
+            "start": 133,
+            "end": 163,
+            "field": "competitive_advantage",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "客户：大学生与研究生。",
+            "start": 31,
+            "end": 42,
+            "field": "customer_segment",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H19",
+        "status": "pass",
+        "severity": "high",
+        "message": "收入模型未发现明显闭环冲突。",
+        "probing_question": "你的核心收入来源是否覆盖单位交付成本？盈亏平衡点在哪里？",
+        "fix_task": "补收入-成本闭环测算；验收标准：给出单笔收入、单笔成本、毛利与盈亏平衡点。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "收入模式：前期完全免费，10万活跃用户后再考虑会员19元/月。",
+            "start": 101,
+            "end": 132,
+            "field": "revenue_model",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "成本结构：大模型API和服务器成本。",
+            "start": 206,
+            "end": 224,
+            "field": "cost_structure",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H20",
+        "status": "pass",
+        "severity": "high",
+        "message": "成本覆盖能力未发现明显异常。",
+        "probing_question": "若不融资，你的现金流还能支撑多久？LTV/CAC 是如何测得的？",
+        "fix_task": "补单位经济测算说明；验收标准：明确 CAC 口径、LTV 假设、回本周期与风险边界。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "成本结构：大模型API和服务器成本。",
+            "start": 206,
+            "end": 224,
+            "field": "cost_structure",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          },
+          {
+            "source": "extracted_field",
+            "quote": "收入模式：前期完全免费，10万活跃用户后再考虑会员19元/月。",
+            "start": 101,
+            "end": 132,
+            "field": "revenue_model",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H21",
+        "status": "pass",
+        "severity": "high",
+        "message": "未发现明显版权授权风险信号。",
+        "probing_question": "你是否具备数据授权或版权许可？若被审查，证据链如何提供？",
+        "fix_task": "补合规与授权清单；验收标准：授权来源、使用范围、风险应对、责任人四项齐全。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "价值主张：上传PDF/PPT/录音后自动摘要并生成Anki卡片。",
+            "start": 43,
+            "end": 75,
+            "field": "value_proposition",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      },
+      {
+        "rule_id": "H22",
+        "status": "pass",
+        "severity": "medium",
+        "message": "证据来源质量未见明显问题。",
+        "probing_question": "你的结论来自主观判断还是样本数据？样本量与抽样方式是什么？",
+        "fix_task": "补验证证据表；验收标准：样本来源、样本量、结论、局限性四项齐全。",
+        "evidence": []
+      },
+      {
+        "rule_id": "H23",
+        "status": "pass",
+        "severity": "high",
+        "message": "里程碑规模与资源描述未发现明显冲突。",
+        "probing_question": "当前团队与资源是否支持该里程碑？最小可行试点边界在哪里？",
+        "fix_task": "重写里程碑计划；验收标准：按月拆分目标、资源投入、负责人与退出条件。",
+        "evidence": [
+          {
+            "source": "extracted_field",
+            "quote": "执行计划：1个月MVP，2-3个月100人内测，6个月公开版上线。",
+            "start": 225,
+            "end": 258,
+            "field": "execution_plan",
+            "doc_id": null,
+            "page_no": null,
+            "chunk_id": null
+          }
+        ]
+      }
+    ],
+    "retrieved_case_evidence": [
+      {
+        "source": "case_pdf",
+        "quote": "title: MediTriage 校园健康分诊助手\ndomain: healthtech\nstage: pilot\noutcome: failed\nsummary: 产品试图基于学生自评问卷给出健康风险建议，但未完成数据授权与伦理审查。项目在试点前被学校暂停。\nfailure_reasons: 敏感数据合规准备不足; 风险告知机制缺失\nlessons: 医疗/健康类项目必须先走合规清单; 上线前准备伦理审查与告知文本\nkey_metrics: signed_schools=",
+        "start": null,
+        "end": null,
+        "field": null,
+        "doc_id": "structured_case::C005",
+        "page_no": 1,
+        "chunk_id": "structured-C005"
+      },
+      {
+        "source": "case_pdf",
+        "quote": "title: NoteMind 学习笔记助手\ndomain: edtech\nstage: mvp\noutcome: pivot\nsummary: 团队提供 AI 摘要和复习卡片生成功能，早期下载量增长快，但免费策略导致 API 成本迅速攀升。经过压力测试后，团队改为限额免费 + 订阅。\nfailure_reasons: 免费策略与调用成本冲突; 缺少清晰回本周期测算\nlessons: 先定义免费额度和毛利底线; 定价实验应早于规模投放\nkey_metrics: beta_us",
+        "start": null,
+        "end": null,
+        "field": null,
+        "doc_id": "structured_case::C004",
+        "page_no": 1,
+        "chunk_id": "structured-C004"
+      },
+      {
+        "source": "case_pdf",
+        "quote": "title: DroneVillage 低空农资配送试点\ndomain: agritech\nstage: pilot\noutcome: failed\nsummary: 团队尝试在两个乡镇做无人机农资配送，路演中强调技术领先，但缺少真实付费意愿数据。第一个月完成飞行演示，第二个月订单增长停滞。主要原因是渠道投放和目标农户触达错位。\nfailure_reasons: 渠道与客户错配; 单位经济无法覆盖电池与折旧成本; 缺少本地合作站点\nlessons: 先做县域单点试运行再扩张;",
+        "start": null,
+        "end": null,
+        "field": null,
+        "doc_id": "structured_case::C001",
+        "page_no": 1,
+        "chunk_id": "structured-C001"
+      }
+    ],
+    "structured_diagnosis": {
+      "diagnosis_summary": "命中敏感领域关键词 ['学生']，但未看到合规说明。",
+      "risk_level": "high_risk",
+      "triggered_rules": [
+        "H2",
+        "H8",
+        "H9",
+        "H11",
+        "H12",
+        "H13",
+        "H14",
+        "H15",
+        "H17"
+      ],
+      "next_action": "补一页合规与伦理说明；验收标准：覆盖数据来源、用户授权、风险边界、责任人四项。",
+      "claims": [
+        {
+          "field": "problem",
+          "statement": "命中敏感领域关键词 ['学生']，但未看到合规说明。",
+          "evidence_refs": [
+            "rule:H11",
+            "input:problem",
+            "case:structured_case::C005"
+          ],
+          "status": "supported"
+        },
+        {
+          "field": "next_action",
+          "statement": "建议先执行：补一页合规与伦理说明；验收标准：覆盖数据来源、用户授权、风险边界、责任人四项。",
+          "evidence_refs": [
+            "rule:H11"
+          ],
+          "status": "supported"
+        }
+      ]
+    },
+    "constraint_validation": {
+      "passed": true,
+      "violations": [],
+      "rewrite_attempted": false
+    },
+    "rendered_views": {
+      "student": "当前判断：命中敏感领域关键词 ['学生']，但未看到合规说明。\n下一步：补一页合规与伦理说明；验收标准：覆盖数据来源、用户授权、风险边界、责任人四项。",
+      "teacher": "风险等级：high_risk；触发规则：H2, H8, H9, H11, H12, H13, H14, H15, H17。\n非通过规则数量：9；建议优先跟进 H2。",
+      "debug": "{\n  \"agent_name\": \"project_coach\",\n  \"fallacy_label\": \"未触发显著谬误\",\n  \"rule_triggered\": [\n    \"H11\",\n    \"H8\",\n    \"H13\",\n    \"H14\",\n    \"H15\",\n    \"H17\",\n    \"H2\",\n    \"H9\",\n    \"H12\"\n  ],\n  \"retrieved_heterogeneous_subgraph\": [\n    {\n      \"rule_id\": \"H11\",\n      \"edge_type\": \"Risk_Pattern_Edge\",\n      \"required_fields\": [\n        \"problem\",\n        \"customer_segment\"\n      ]\n    },\n    {\n      \"rule_id\": \"H8\",\n      \"edge_type\": \"Unit_Economics_Edge\",\n      \"required_fields\": [\n        \"ltv\",\n        \"cac\"\n      ]\n    },\n    {\n      \"rule_id\": \"H13\",\n      \"edge_type\": \"Retention_Growth_Edge\",\n      \"required_fields\": [\n        \"revenue_model\"\n      ]\n    }\n  ],\n  \"retrieved_context_nodes\": [\n    \"problem\",\n    \"customer_segment\",\n    \"ltv\",\n    \"cac\",\n    \"revenue_model\"\n  ],\n  \"retrieved_case_docs\": [\n    \"structured_case::C001\",\n    \"structured_case::C004\",\n    \"structured_case::C005\"\n  ],\n  \"selected_strategy\": \"S09_compliance_boundary_check\",\n  \"selected_strategy_name\": \"合规边界检验\",\n  \"generated_question\": \"涉及的数据、用户与决策风险分别是什么？你准备如何合规处理？\",\n  \"validation_passed\": true,\n  \"violations\": 0,\n  \"rewrite_attempted\": false\n}"
+    },
+    "markdown_report": "## Current Diagnosis\n命中敏感领域关键词 ['学生']，但未看到合规说明。\n\n## Evidence Used\n- problem: 问题：学生笔记杂乱、复习效率低。\n- customer_segment: 客户：大学生与研究生。\n- [case: structured_case::C005 p.1] \"title: MediTriage 校园健康分诊助手\ndomain: healthtech\nstage: pilot\noutcome: failed\nsummary: 产品试图基于学生自评问卷给出健康风险建议，但未完成数据授权与伦理审查。项目在试点前被学校暂停。\nfailure_reasons: 敏感数据合规准备不足; 风险告知机制缺失\nlessons: 医疗/健康类项目必须先走合规清单; 上线前准备伦理审查与告知文本\nkey_metrics: signed_schools=\"\n\n## Impact\n命中敏感领域关键词 ['学生']，但未看到合规说明。 类似问题在案例库中也出现过，若不修正会直接拖累验证效率和落地风险。\n\n## Next Task\n补一页合规与伦理说明；验收标准：覆盖数据来源、用户授权、风险边界、责任人四项。\n\n## Triggered Rules\n- H1: pass / medium / 客户、价值主张与渠道链路基本完整。\n- H2: warning / medium / 问题定义与方案描述几乎没有关键词重合，需警惕方案没有直接回应痛点。\n- H4: pass / high / TAM/SAM/SOM 逻辑成立。\n- H5: pass / medium / 当前付费逻辑至少有基本说明，未发现明显的角色错位。\n- H8: fail / high / 缺少 LTV/CAC 数据，无法判断单位经济。\n- H9: warning / high / 已有少量验证信号，但证据仍偏弱，建议补更明确的用户验证数据。\n- H10: pass / high / 执行路径已有基本说明，具备初步落地计划。\n- H11: high_risk / high / 命中敏感领域关键词 ['学生']，但未看到合规说明。\n- H12: warning / medium / 存在差异化描述，但竞争壁垒证据偏弱。\n- H13: fail / medium / 没有看到留存或复购机制描述，增长可能依赖一次性获客。\n- H14: fail / high / 未提供阶段增长目标，无法校验增长假设是否可行。\n- H15: fail / high / 试点路径不明确，缺少首批对象、进入路径或验收节奏。\n- H16: pass / medium / 客户与渠道关系未发现明显冲突。\n- H17: fail / medium / 方案未给出可验证改进方向，问题-方案映射较弱。\n- H18: pass / high / 竞争与替代方案说明基本可用。\n- H19: pass / high / 收入模型未发现明显闭环冲突。\n- H20: pass / high / 成本覆盖能力未发现明显异常。\n- H21: pass / high / 未发现明显版权授权风险信号。\n- H22: pass / medium / 证据来源质量未见明显问题。\n- H23: pass / high / 里程碑规模与资源描述未发现明显冲突。\n\n## Rubric Scores\n- R1 Problem Clarity: 2/5 (问题定义与用户画像越清晰，越容易形成有效验证闭环。)\n- R2 User-Channel Fit: 4/5 (渠道和人群匹配决定获客效率与预算利用率。)\n- R3 Value Proposition Fit: 2/5 (价值主张必须直接映射痛点，且具备可量化改善目标。)\n- R4 Competition & Moat: 3/5 (竞争认知与护城河建设决定项目长期防御能力。)\n- R5 Business Model: 4/5 (收入结构与付费角色需要形成可解释的商业闭环。)\n- R6 Unit Economics: 2/5 (单位经济与成本覆盖能力决定项目是否可持续。)\n- R7 Execution Plan: 2/5 (执行与试点计划需要与团队资源规模相匹配。)\n- R8 Compliance & Ethics: 1/5 (敏感场景中的合规和伦理边界决定项目上线风险。)\n- R9 Evidence Quality: 3/5 (核心结论必须由可追溯证据支撑，避免主观幻觉。)\n- R10 Growth Feasibility: 2/5 (增长目标必须与市场空间、节奏与资源约束一致。)\n\n## Student View\n当前判断：命中敏感领域关键词 ['学生']，但未看到合规说明。\n下一步：补一页合规与伦理说明；验收标准：覆盖数据来源、用户授权、风险边界、责任人四项。\n\n## Teacher View\n风险等级：high_risk；触发规则：H2, H8, H9, H11, H12, H13, H14, H15, H17。\n非通过规则数量：9；建议优先跟进 H2。\n\n## Debug View\n{\n  \"agent_name\": \"project_coach\",\n  \"fallacy_label\": \"未触发显著谬误\",\n  \"rule_triggered\": [\n    \"H11\",\n    \"H8\",\n    \"H13\",\n    \"H14\",\n    \"H15\",\n    \"H17\",\n    \"H2\",\n    \"H9\",\n    \"H12\"\n  ],\n  \"retrieved_heterogeneous_subgraph\": [\n    {\n      \"rule_id\": \"H11\",\n      \"edge_type\": \"Risk_Pattern_Edge\",\n      \"required_fields\": [\n        \"problem\",\n        \"customer_segment\"\n      ]\n    },\n    {\n      \"rule_id\": \"H8\",\n      \"edge_type\": \"Unit_Economics_Edge\",\n      \"required_fields\": [\n        \"ltv\",\n        \"cac\"\n      ]\n    },\n    {\n      \"rule_id\": \"H13\",\n      \"edge_type\": \"Retention_Growth_Edge\",\n      \"required_fields\": [\n        \"revenue_model\"\n      ]\n    }\n  ],\n  \"retrieved_context_nodes\": [\n    \"problem\",\n    \"customer_segment\",\n    \"ltv\",\n    \"cac\",\n    \"revenue_model\"\n  ],\n  \"retrieved_case_docs\": [\n    \"structured_case::C001\",\n    \"structured_case::C004\",\n    \"structured_case::C005\"\n  ],\n  \"selected_strategy\": \"S09_compliance_boundary_check\",\n  \"selected_strategy_name\": \"合规边界检验\",\n  \"generated_question\": \"涉及的数据、用户与决策风险分别是什么？你准备如何合规处理？\",\n  \"validation_passed\": true,\n  \"violations\": 0,\n  \"rewrite_attempted\": false\n}"
+  }
+}

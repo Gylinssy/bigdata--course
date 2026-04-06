@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -208,6 +208,45 @@ class LearningTutorResponse(BaseModel):
     used_llm: bool
     context_used: bool = False
     context_project_id: str | None = None
+
+
+class IdeaWorkspace(BaseModel):
+    seed_idea: str = ""
+    answers: dict[str, str] = Field(default_factory=dict)
+    pending_fields: list[str] = Field(default_factory=list)
+    last_focus_rule: str | None = None
+    turn_count: int = 0
+
+
+class IdeaCoachOutput(BaseModel):
+    stage_label: str
+    overview: str
+    focus_rule_id: str | None = None
+    focus_rule_message: str = ""
+    socratic_question: str
+    answer_template: str
+    next_action: str
+    generated_project_text: str
+    ready_for_generation: bool
+    ready_for_diagnosis: bool
+    completion_ratio: float = Field(ge=0.0, le=1.0)
+    missing_core_fields: list[str] = Field(default_factory=list)
+    detected_rules: list[RuleResult] = Field(default_factory=list)
+    hypergraph_focus: dict[str, Any] = Field(default_factory=dict)
+    draft_state: ProjectState
+
+
+class IdeaCoachRequest(BaseModel):
+    latest_input: str = ""
+    workspace: IdeaWorkspace | None = None
+
+
+class IdeaCoachResponse(BaseModel):
+    reply: str
+    structured_output: IdeaCoachOutput
+    workspace: IdeaWorkspace
+    model: str
+    used_llm: bool
 
 
 class IngestRequest(BaseModel):

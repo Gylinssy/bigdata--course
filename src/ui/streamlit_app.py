@@ -21,8 +21,9 @@ from core.chat_agent import ConversationAgent  # noqa: E402
 from core.case_library import export_structured_chunks  # noqa: E402
 from core.env_utils import load_env_file  # noqa: E402
 from core.evidence import format_evidence  # noqa: E402
+from core.idea_agent import IdeaCoachAgent  # noqa: E402
 from core.learning_agent import LearningTutorAgent  # noqa: E402
-from core.models import ChatMessage, ProjectCoachRequest  # noqa: E402
+from core.models import ChatMessage, IdeaWorkspace, ProjectCoachRequest  # noqa: E402
 from core.ocr.ingest import ingest_directory  # noqa: E402
 from core.pipeline import ProjectCoachPipeline  # noqa: E402
 from core.runtime_log import RuntimeLogger  # noqa: E402
@@ -129,6 +130,11 @@ def build_learning_agent() -> LearningTutorAgent:
 
 
 @st.cache_resource
+def build_idea_agent() -> IdeaCoachAgent:
+    return IdeaCoachAgent()
+
+
+@st.cache_resource
 def build_rule_engine() -> RuleEngine:
     return RuleEngine()
 
@@ -144,6 +150,11 @@ def ensure_app_state() -> None:
     st.session_state.setdefault("student_result", None)
     st.session_state.setdefault("student_last_project_id", None)
     st.session_state.setdefault("student_draft_project_id", f"p-{uuid4().hex[:8]}")
+    st.session_state.setdefault("idea_project_id", None)
+    st.session_state.setdefault("idea_workspace", None)
+    st.session_state.setdefault("idea_messages", [])
+    st.session_state.setdefault("idea_output", None)
+    st.session_state.setdefault("idea_debug", None)
     st.session_state.setdefault("chat_sessions", [])
     st.session_state.setdefault("active_chat_id", None)
     st.session_state.setdefault("learning_reply", "")
@@ -397,6 +408,62 @@ def compute_capability_profile(messages: list[dict]) -> dict:
         "资源执行(Execution)": min(5, execution),
         "逻辑表达(Logic)": min(5, logic),
     }
+
+
+def store_idea_response(response, *, seed_text: str | None = None, user_text: str | None = None, reset_messages: bool = False) -> None:
+    if reset_messages:
+        st.session_state["idea_messages"] = []
+        if seed_text and seed_text.strip():
+            st.session_state["idea_messages"].append({"role": "user", "content": seed_text.strip()})
+    elif user_text and user_text.strip():
+        st.session_state.setdefault("idea_messages", []).append({"role": "user", "content": user_text.strip()})
+    st.session_state.setdefault("idea_messages", []).append({"role": "assistant", "content": response.reply})
+    st.session_state["idea_workspace"] = response.workspace.model_dump(mode="json")
+    st.session_state["idea_output"] = response.structured_output.model_dump(mode="json")
+    st.session_state["idea_debug"] = {
+        "agent_name": "idea_coach_agent",
+        "model": response.model,
+        "used_llm": response.used_llm,
+        "workspace": response.workspace.model_dump(mode="json"),
+        "structured_output": response.structured_output.model_dump(mode="json"),
+    }
+
+
+def reset_idea_session(seed_text: str = "") -> None:
+    response = build_idea_agent().bootstrap(seed_text)
+    st.session_state["idea_project_id"] = st.session_state.get("student_draft_project_id") or f"p-{uuid4().hex[:8]}"
+    store_idea_response(response, seed_text=seed_text, reset_messages=True)
+
+
+def get_idea_workspace() -> IdeaWorkspace | None:
+    payload = st.session_state.get("idea_workspace")
+    if not payload:
+        return None
+    try:
+        return IdeaWorkspace.model_validate(payload)
+    except Exception:
+        return None
+
+
+def run_diagnosis_from_text(project_text: str, project_id: str) -> None:
+    user = current_user(st.session_state) or {"username": "student"}
+    st.session_state["student_draft_project_id"] = project_id
+    output = build_pipeline().run(
+        ProjectCoachRequest(
+            user_id=user["username"],
+            project_id=project_id,
+            project_text=project_text.strip(),
+        )
+    )
+    st.session_state["student_result"] = {
+        "request": {
+            "user_id": user["username"],
+            "project_id": project_id,
+            "project_text": project_text.strip(),
+        },
+        "output": output.model_dump(mode="json"),
+    }
+    st.session_state["student_last_project_id"] = project_id
 
 
 def render_login_page() -> None:
@@ -733,6 +800,136 @@ def render_student_diagnosis_panel() -> None:
                 st.code(debug_text)
 
 
+def render_student_idea_panel() -> None:
+    st.markdown(
+        """
+        <div class="hero-card">
+          <div class="hero-kicker">A0</div>
+          <div class="hero-title">Idea 孵化与苏格拉底式追问</div>
+          <div class="hero-copy">
+            从模糊想法出发，按超图规则逐轮追问问题、用户、方案、证据与落地路径，信息足够后自动收束成可诊断草案。
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    action_col, info_col = st.columns([1.05, 0.95])
+    with action_col:
+        with st.form("idea_bootstrap_form"):
+            seed_text = st.text_area(
+                "一句话描述你的 idea",
+                height=120,
+                placeholder="例如：我想做一个帮考研学生自动整理资料并生成复习卡片的工具。",
+            )
+            submitted = st.form_submit_button("启动 A0 追问", use_container_width=True, type="primary")
+        if submitted:
+            reset_idea_session(seed_text.strip())
+            st.rerun()
+
+    with info_col:
+        st.markdown(
+            """
+            <div class="surface-card">
+              <div class="surface-title">A0 工作方式</div>
+              <div class="surface-copy">
+                1. 每轮追问都绑定当前高优先级规则<br/>
+                2. 回答尽量按模板字段填写，便于系统收束成草案<br/>
+                3. 当核心字段齐备后，可一键送入 A2-A4 诊断
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if not st.session_state.get("idea_workspace"):
+        st.markdown('<div class="placeholder-card">先输入一句话 idea，A0 会从问题、用户与最小方案开始追问。</div>', unsafe_allow_html=True)
+        return
+
+    output = st.session_state.get("idea_output") or {}
+    messages = st.session_state.get("idea_messages") or []
+    focus_rule = output.get("focus_rule_id") or "已通过基础约束"
+    completion_ratio = float(output.get("completion_ratio", 0.0) or 0.0)
+    project_id = st.session_state.get("idea_project_id") or st.session_state.get("student_draft_project_id")
+    generated_project_text = output.get("generated_project_text", "")
+
+    render_summary_metrics(
+        [
+            {"label": "阶段", "value": output.get("stage_label", "Idea 火花"), "footnote": "A0 当前收束阶段"},
+            {"label": "完成度", "value": f"{round(completion_ratio * 100)}%", "footnote": "基于关键字段覆盖率估算"},
+            {"label": "当前规则焦点", "value": focus_rule, "footnote": "本轮追问绑定的超边规则"},
+            {"label": "项目编号", "value": project_id or "未生成", "footnote": "A0 到 A2-A4 的共享草案编号"},
+        ]
+    )
+
+    thread_col, draft_col = st.columns([1.18, 0.82], gap="large")
+    with thread_col:
+        if st.button("重新开始 A0", key="idea_reset_button", use_container_width=True, type="secondary"):
+            st.session_state["idea_workspace"] = None
+            st.session_state["idea_messages"] = []
+            st.session_state["idea_output"] = None
+            st.session_state["idea_debug"] = None
+            st.session_state["idea_project_id"] = None
+            st.rerun()
+
+        st.markdown('<div class="chat-thread">', unsafe_allow_html=True)
+        for message in messages:
+            if message["role"] == "user":
+                st.markdown(f'<div class="chat-bubble-user">你：{html.escape(message["content"])}</div>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="chat-bubble-assistant">{html.escape(message["content"]).replace(chr(10), "<br/>")}</div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        with st.form("idea_turn_form", clear_on_submit=True):
+            answer_placeholder = output.get("answer_template") or "继续补充这一轮最关键的信息。"
+            user_text = st.text_area("本轮回答", height=150, placeholder=answer_placeholder)
+            turn_submitted = st.form_submit_button("提交这一轮回答", use_container_width=True, type="primary")
+        if turn_submitted:
+            if not user_text.strip():
+                st.warning("请先输入这一轮回答。")
+            else:
+                workspace = get_idea_workspace()
+                if workspace is None:
+                    st.warning("A0 会话状态已失效，请重新启动。")
+                else:
+                    response = build_idea_agent().step(workspace, user_text.strip())
+                    store_idea_response(response, user_text=user_text.strip())
+                    st.rerun()
+
+    with draft_col:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">当前草案</div>', unsafe_allow_html=True)
+        if generated_project_text:
+            st.code(generated_project_text, language="text")
+        else:
+            st.info("当前信息还不足以收束出草案。")
+        diagnose_disabled = not bool(output.get("ready_for_generation")) or not generated_project_text.strip()
+        if st.button("送入 A2-A4 诊断", key="idea_to_diagnosis", use_container_width=True, type="primary", disabled=diagnose_disabled):
+            with st.spinner("正在把 A0 草案送入诊断链路..."):
+                run_diagnosis_from_text(generated_project_text, project_id or f"p-{uuid4().hex[:8]}")
+            st.success("A0 草案已送入 A2-A4 诊断。现在可以切到“项目诊断”或“A1”继续看结果。")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">超图焦点</div>', unsafe_allow_html=True)
+        hypergraph_focus = output.get("hypergraph_focus") or {}
+        st.write(output.get("overview", "暂无概览。"))
+        if hypergraph_focus.get("retrieved_context_nodes"):
+            st.write(f"本轮上下文字段：{', '.join(hypergraph_focus['retrieved_context_nodes'])}")
+        if hypergraph_focus.get("retrieved_heterogeneous_subgraph"):
+            for item in hypergraph_focus["retrieved_heterogeneous_subgraph"]:
+                st.write(
+                    f"- {item.get('rule_id', 'unknown')} / {item.get('edge_type', 'Hypergraph_Edge')} / "
+                    f"{', '.join(item.get('required_fields', [])) or '无字段'}"
+                )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        idea_debug = st.session_state.get("idea_debug")
+        if idea_debug:
+            with st.expander("调试日志（A0 规则追问）", expanded=False):
+                st.json(idea_debug)
+
+
 def render_student_learning_panel() -> None:
     st.markdown(
         """
@@ -863,9 +1060,11 @@ def render_student_competition_panel() -> None:
 
 
 def render_student_page() -> None:
-    diagnose_tab, learning_tab, competition_tab, chat_tab = st.tabs(
-        ["项目诊断（A2-A4）", "学习辅导（A1）", "路演评分（A5）", "追问对话"]
+    idea_tab, diagnose_tab, learning_tab, competition_tab, chat_tab = st.tabs(
+        ["Idea 孵化（A0）", "项目诊断（A2-A4）", "学习辅导（A1）", "路演评分（A5）", "追问对话"]
     )
+    with idea_tab:
+        render_student_idea_panel()
     with diagnose_tab:
         render_student_diagnosis_panel()
     with learning_tab:
