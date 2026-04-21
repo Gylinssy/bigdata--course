@@ -8,6 +8,8 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+from core.project_stages import bucket_case_stage, bucket_rule_stage, stage_display_name, stage_scope
+
 
 SEVERITY_COLORS = {
     "high": "#ef4444",
@@ -20,6 +22,18 @@ STATUS_COLORS = {
     "fail": "#dc2626",
     "warning": "#d97706",
     "pass": "#059669",
+}
+
+KG_EDGE_COLORS = {
+    "HAS_DOMAIN": "#2563eb",
+    "HAS_OUTCOME": "#16a34a",
+    "HAS_STAGE": "#a855f7",
+    "HAS_TAG": "#f97316",
+    "TEACHES_LESSON": "#0f766e",
+    "HAS_FAILURE": "#ef4444",
+    "MENTIONS_METRIC": "#64748b",
+    "SENSITIVE_TO": "#c2410c",
+    "COVERS_FIELD": "#0f766e",
 }
 
 SEVERITY_ORDER = {
@@ -53,6 +67,31 @@ FIELD_LABELS = {
     "value_proposition": "Value",
 }
 
+KG_NODE_FILL_COLORS = {
+    "CaseDomain": ("#eff6ff", "#bfdbfe", "#1d4ed8"),
+    "ProjectField": ("#eef2ff", "#c7d2fe", "#4338ca"),
+    "SensitiveDomain": ("#fff7ed", "#fdba74", "#c2410c"),
+    "CaseOutcome": ("#ecfdf5", "#bbf7d0", "#15803d"),
+    "CaseStage": ("#f5f3ff", "#ddd6fe", "#7c3aed"),
+    "CaseTag": ("#fff7ed", "#fed7aa", "#c2410c"),
+    "CaseLesson": ("#f0fdfa", "#99f6e4", "#0f766e"),
+    "CaseFailure": ("#fef2f2", "#fecaca", "#b91c1c"),
+    "CaseMetric": ("#f8fafc", "#cbd5e1", "#475569"),
+}
+
+KG_NODE_LABELS = {
+    "Case": "案例",
+    "CaseDomain": "领域",
+    "ProjectField": "项目字段",
+    "SensitiveDomain": "敏感域",
+    "CaseOutcome": "结果",
+    "CaseStage": "案例阶段",
+    "CaseTag": "标签",
+    "CaseLesson": "经验",
+    "CaseFailure": "失败原因",
+    "CaseMetric": "关键指标",
+}
+
 
 def _edge_kind_label(arity: int) -> str:
     if arity >= 3:
@@ -78,11 +117,21 @@ def _balance_fields(fields: list[str], field_counts: Counter[str]) -> tuple[list
     return left_fields, right_fields
 
 
-def _build_hypergraph_view_model(rule_specs: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _build_hypergraph_view_model(
+    rule_specs: dict[str, dict[str, Any]],
+    *,
+    stage_key: str | None = None,
+    cumulative: bool = True,
+) -> dict[str, Any]:
     field_counts: Counter[str] = Counter()
     hyperedges: list[dict[str, Any]] = []
+    selected_stage_scope = stage_scope(stage_key, cumulative=cumulative)
+    total_rule_count = len(rule_specs)
 
     for rule_id, spec in rule_specs.items():
+        rule_stage_key = bucket_rule_stage(rule_id, str(spec.get("stage_hint", "")))
+        if stage_key and rule_stage_key not in selected_stage_scope:
+            continue
         members = sorted({str(field) for field in spec.get("required_fields", []) if field})
         severity = str(spec.get("severity", "low")).lower()
         field_counts.update(members)
@@ -94,6 +143,8 @@ def _build_hypergraph_view_model(rule_specs: dict[str, dict[str, Any]]) -> dict[
                 "members": members,
                 "arity": len(members),
                 "edge_kind": _edge_kind_label(len(members)),
+                "stage_key": rule_stage_key,
+                "stage_label": stage_display_name(rule_stage_key),
             }
         )
 
@@ -109,8 +160,13 @@ def _build_hypergraph_view_model(rule_specs: dict[str, dict[str, Any]]) -> dict[
         "hyperedges": hyperedges,
         "field_count": len(fields),
         "hyperedge_count": len(hyperedges),
+        "total_rule_count": total_rule_count,
         "max_arity": max((item["arity"] for item in hyperedges), default=0),
         "avg_arity": round(sum(item["arity"] for item in hyperedges) / len(hyperedges), 2) if hyperedges else 0.0,
+        "stage_key": stage_key or "all",
+        "stage_label": "全部阶段" if not stage_key else stage_display_name(stage_key),
+        "stage_scope": selected_stage_scope if stage_key else stage_scope(None),
+        "cumulative": cumulative,
     }
 
 
@@ -226,12 +282,17 @@ def render_rule_bar_chart(rule_rows: list[dict[str, Any]]) -> None:
     st.bar_chart(chart_data.set_index("rule_id")[["count"]], use_container_width=True)
 
 
-def render_hypergraph_visualization(rule_specs: dict[str, dict[str, Any]]) -> None:
+def render_hypergraph_visualization(
+    rule_specs: dict[str, dict[str, Any]],
+    *,
+    stage_key: str | None = None,
+    cumulative: bool = True,
+) -> None:
     if not rule_specs:
         st.markdown('<div class="placeholder-card">暂无超图规则配置。</div>', unsafe_allow_html=True)
         return
 
-    view_model = _build_hypergraph_view_model(rule_specs)
+    view_model = _build_hypergraph_view_model(rule_specs, stage_key=stage_key, cumulative=cumulative)
     fields = view_model["fields"]
     left_fields = view_model["left_fields"]
     right_fields = view_model["right_fields"]
@@ -362,6 +423,8 @@ def render_hypergraph_visualization(rule_specs: dict[str, dict[str, Any]]) -> No
     )
 
     matrix_html = _build_hypergraph_matrix_html(view_model)
+    stage_scope_text = " → ".join(stage_display_name(item) for item in view_model["stage_scope"])
+    stage_mode_text = "累计前序阶段" if stage_key and cumulative else ("单阶段" if stage_key else "全部规则")
     html_block = f"""
     <div class="hg-wrap">
       <style>
@@ -536,6 +599,12 @@ def render_hypergraph_visualization(rule_specs: dict[str, dict[str, Any]]) -> No
         }}
       </style>
       <div class="hg-meta-grid">{stats_html}</div>
+      <div class="hg-legend">
+        <div class="hg-legend-chip">当前子图：{html.escape(view_model["stage_label"])}</div>
+        <div class="hg-legend-chip">模式：{html.escape(stage_mode_text)}</div>
+        <div class="hg-legend-chip">阶段范围：{html.escape(stage_scope_text)}</div>
+        <div class="hg-legend-chip">规则数：{view_model["hyperedge_count"]}/{view_model["total_rule_count"]}</div>
+      </div>
       {''.join(svg_parts)}
       <div class="hg-legend">{legend_html}</div>
       {matrix_html}
@@ -565,3 +634,251 @@ def render_rule_status_cards(rule_rows: list[dict[str, Any]]) -> None:
             """,
             unsafe_allow_html=True,
         )
+
+
+def _build_kg_view_model(
+    graph: dict[str, Any],
+    max_cases: int = 10,
+    *,
+    stage_key: str | None = None,
+    cumulative: bool = True,
+    max_side_nodes: int = 28,
+) -> dict[str, Any]:
+    nodes = graph.get("nodes", [])
+    rels = graph.get("relationships", [])
+    node_map = {node.get("node_id"): node for node in nodes if node.get("node_id")}
+    stage_keys = stage_scope(stage_key, cumulative=cumulative)
+
+    case_nodes = [
+        node
+        for node in nodes
+        if node.get("label") == "Case"
+        and (
+            not stage_key
+            or bucket_case_stage(str(node.get("properties", {}).get("stage", ""))) in stage_keys
+        )
+    ]
+    case_nodes.sort(key=lambda node: str(node.get("name", "")))
+    case_pool_count = len(case_nodes)
+    selected_cases = case_nodes[:max_cases]
+    selected_case_ids = {node.get("node_id") for node in selected_cases if node.get("node_id")}
+
+    left_labels = {"CaseDomain", "ProjectField", "SensitiveDomain"}
+    right_labels = {"CaseOutcome", "CaseStage", "CaseTag", "CaseLesson", "CaseFailure", "CaseMetric"}
+    label_priority = {
+        label: index
+        for index, label in enumerate([*sorted(left_labels), *sorted(right_labels)])
+    }
+
+    degree_counter: Counter[str] = Counter()
+    connected_node_ids = set(selected_case_ids)
+    connected_edges: list[dict[str, str]] = []
+
+    for rel in rels:
+        start = rel.get("start")
+        end = rel.get("end")
+        rel_type = rel.get("type")
+        if start not in selected_case_ids and end not in selected_case_ids:
+            continue
+        if start in node_map:
+            connected_node_ids.add(start)
+            degree_counter[str(start)] += 1
+        if end in node_map:
+            connected_node_ids.add(end)
+            degree_counter[str(end)] += 1
+        connected_edges.append({"start": start, "end": end, "type": rel_type})
+
+    side_nodes = [
+        node_map[node_id]
+        for node_id in connected_node_ids
+        if node_id in node_map and node_id not in selected_case_ids
+    ]
+
+    def _sort_side_nodes(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return sorted(
+            items,
+            key=lambda node: (
+                -degree_counter.get(str(node.get("node_id")), 0),
+                label_priority.get(str(node.get("label")), 999),
+                str(node.get("name", "")),
+            ),
+        )
+
+    left_nodes = _sort_side_nodes([node for node in side_nodes if node.get("label") in left_labels])[:max_side_nodes]
+    right_nodes = _sort_side_nodes([node for node in side_nodes if node.get("label") in right_labels])[:max_side_nodes]
+    rendered_node_ids = selected_case_ids | {node["node_id"] for node in left_nodes} | {node["node_id"] for node in right_nodes}
+    rendered_edges = [
+        edge
+        for edge in connected_edges
+        if edge["start"] in rendered_node_ids and edge["end"] in rendered_node_ids
+    ]
+
+    total_type_counts: Counter[str] = Counter()
+    rendered_type_counts: Counter[str] = Counter()
+    for node_id in connected_node_ids:
+        if node_id not in node_map:
+            continue
+        total_type_counts[str(node_map[node_id].get("label", "Unknown"))] += 1
+    for node_id in rendered_node_ids:
+        if node_id not in node_map:
+            continue
+        rendered_type_counts[str(node_map[node_id].get("label", "Unknown"))] += 1
+
+    node_type_rows = [
+        {
+            "node_type": KG_NODE_LABELS.get(label, label),
+            "label": label,
+            "rendered": rendered_type_counts.get(label, 0),
+            "total": total_type_counts.get(label, 0),
+            "coverage_ratio": round(rendered_type_counts.get(label, 0) / total_type_counts.get(label, 1), 2),
+        }
+        for label in sorted(total_type_counts.keys())
+    ]
+
+    return {
+        "cases": selected_cases,
+        "left_nodes": left_nodes,
+        "right_nodes": right_nodes,
+        "edges": rendered_edges,
+        "node_map": node_map,
+        "stage_key": stage_key or "all",
+        "stage_label": "全部阶段" if not stage_key else stage_display_name(stage_key),
+        "stage_scope": stage_keys if stage_key else stage_scope(None),
+        "cumulative": cumulative,
+        "case_pool_count": case_pool_count,
+        "subgraph_node_count": len(connected_node_ids),
+        "rendered_node_count": len(rendered_node_ids),
+        "node_completeness_ratio": round(len(rendered_node_ids) / len(connected_node_ids), 2) if connected_node_ids else 0.0,
+        "node_type_rows": node_type_rows,
+    }
+
+
+def render_knowledge_graph_visualization(
+    graph: dict[str, Any],
+    *,
+    backend: str = "case_library",
+    max_cases: int = 10,
+    stage_key: str | None = None,
+    cumulative: bool = True,
+) -> None:
+    if not graph or not graph.get("nodes"):
+        st.markdown('<div class="placeholder-card">暂无知识图谱数据。</div>', unsafe_allow_html=True)
+        return
+
+    view_model = _build_kg_view_model(graph, max_cases=max_cases, stage_key=stage_key, cumulative=cumulative)
+    cases = view_model["cases"]
+    left_nodes = view_model["left_nodes"]
+    right_nodes = view_model["right_nodes"]
+    edges = view_model["edges"]
+    width = 1140
+    height = max(520, 50 * max(len(left_nodes), len(cases), len(right_nodes)) + 140)
+    left_x = 160
+    center_x = width / 2
+    right_x = width - 160
+    top_margin = 96
+
+    left_positions = _lane_positions([node["node_id"] for node in left_nodes], left_x, height, top=top_margin, bottom=84)
+    center_positions = _lane_positions([node["node_id"] for node in cases], center_x, height, top=top_margin, bottom=84)
+    right_positions = _lane_positions([node["node_id"] for node in right_nodes], right_x, height, top=top_margin, bottom=84)
+
+    def label_for(node: dict[str, Any]) -> str:
+        return str(node.get("name") or node.get("node_id", ""))
+
+    svg_parts: list[str] = [
+        f'<svg viewBox="0 0 {width} {height}" width="100%" height="{height}" role="img" aria-label="Knowledge graph overview">',
+        '<defs><filter id="kgShadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#94a3b8" flood-opacity="0.15"/></filter></defs>',
+        '<rect x="0" y="0" width="100%" height="100%" rx="26" fill="#ffffff"></rect>',
+        '<text x="160" y="54" text-anchor="middle" font-size="14" fill="#475569" font-weight="700">领域</text>',
+        '<text x="570" y="54" text-anchor="middle" font-size="14" fill="#475569" font-weight="700">案例</text>',
+        '<text x="980" y="54" text-anchor="middle" font-size="14" fill="#475569" font-weight="700">结果与阶段</text>',
+    ]
+
+    for edge in edges:
+        start = edge["start"]
+        end = edge["end"]
+        start_pos = center_positions.get(start) or left_positions.get(start)
+        end_pos = left_positions.get(end) or right_positions.get(end)
+        if not start_pos or not end_pos:
+            continue
+        color = KG_EDGE_COLORS.get(edge.get("type"), "#94a3b8")
+        svg_parts.append(
+            f'<path d="M {start_pos[0]} {start_pos[1]} C {start_pos[0] - 120} {start_pos[1]}, {end_pos[0] + 120} {end_pos[1]}, {end_pos[0]} {end_pos[1]}" '
+            f'stroke="{color}" stroke-width="2" fill="none" opacity="0.35"></path>'
+        )
+
+    for node in left_nodes:
+        node_id = node["node_id"]
+        x, y = left_positions[node_id]
+        fill, stroke, text_color = KG_NODE_FILL_COLORS.get(str(node.get("label")), ("#eff6ff", "#bfdbfe", "#1d4ed8"))
+        svg_parts.append(
+            f'<rect x="{x - 96}" y="{y - 24}" width="192" height="48" rx="18" fill="{fill}" stroke="{stroke}" filter="url(#kgShadow)"></rect>'
+        )
+        svg_parts.append(
+            f'<text x="{x}" y="{y - 2}" text-anchor="middle" font-size="11" fill="{text_color}" font-weight="700">{html.escape(KG_NODE_LABELS.get(str(node.get("label")), str(node.get("label"))))}</text>'
+        )
+        svg_parts.append(
+            f'<text x="{x}" y="{y + 14}" text-anchor="middle" font-size="11" fill="{text_color}" font-weight="600">{html.escape(label_for(node))}</text>'
+        )
+
+    for node in cases:
+        node_id = node["node_id"]
+        x, y = center_positions[node_id]
+        svg_parts.append(
+            f'<rect x="{x - 120}" y="{y - 26}" width="240" height="52" rx="18" fill="#f8fafc" stroke="#e2e8f0" filter="url(#kgShadow)"></rect>'
+        )
+        svg_parts.append(
+            f'<text x="{x}" y="{y + 5}" text-anchor="middle" font-size="12" fill="#0f172a" font-weight="600">{html.escape(label_for(node))}</text>'
+        )
+
+    for node in right_nodes:
+        node_id = node["node_id"]
+        x, y = right_positions[node_id]
+        fill, stroke, text_color = KG_NODE_FILL_COLORS.get(str(node.get("label")), ("#ecfdf5", "#bbf7d0", "#15803d"))
+        svg_parts.append(
+            f'<rect x="{x - 96}" y="{y - 24}" width="192" height="48" rx="18" fill="{fill}" stroke="{stroke}" filter="url(#kgShadow)"></rect>'
+        )
+        svg_parts.append(
+            f'<text x="{x}" y="{y - 2}" text-anchor="middle" font-size="11" fill="{text_color}" font-weight="700">{html.escape(KG_NODE_LABELS.get(str(node.get("label")), str(node.get("label"))))}</text>'
+        )
+        svg_parts.append(
+            f'<text x="{x}" y="{y + 14}" text-anchor="middle" font-size="11" fill="{text_color}" font-weight="600">{html.escape(label_for(node))}</text>'
+        )
+
+    svg_parts.append("</svg>")
+
+    summary_cards = [
+        {"label": "KG Backend", "value": backend, "footnote": "当前图谱读取来源"},
+        {"label": "节点总量", "value": str(len(graph.get("nodes", []))), "footnote": "案例库 + 领域/阶段/结果"},
+        {
+            "label": "案例节点",
+            "value": str(len([node for node in graph.get("nodes", []) if node.get("label") == "Case"])),
+            "footnote": "结构化案例",
+        },
+        {"label": "关系数量", "value": str(len(graph.get("relationships", []))), "footnote": "领域/阶段/结果关联"},
+    ]
+
+    st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+    # The summary cards are recomputed after the SVG so the staged completeness metrics stay in sync.
+    components.html("".join(svg_parts), height=height + 24)
+    summary_cards = [
+        {"label": "KG Backend", "value": backend, "footnote": "当前图谱读取来源"},
+        {"label": "阶段子图", "value": view_model["stage_label"], "footnote": "按阶段裁剪后的案例知识子图"},
+        {
+            "label": "可视节点",
+            "value": f"{view_model['rendered_node_count']}/{view_model['subgraph_node_count']}",
+            "footnote": "当前画布中实际渲染的节点量",
+        },
+        {
+            "label": "节点完整性",
+            "value": f"{round(view_model['node_completeness_ratio'] * 100, 1)}%",
+            "footnote": f"可视化节点覆盖率；案例 {len(cases)}/{view_model['case_pool_count']}",
+        },
+    ]
+    render_summary_metrics(summary_cards)
+    st.dataframe(view_model["node_type_rows"], use_container_width=True, hide_index=True)
+    scope_text = " → ".join(stage_display_name(item) for item in view_model["stage_scope"])
+    st.caption(
+        f"当前显示 {view_model['stage_label']} 子图；阶段范围：{scope_text}；后端：{backend}。节点完整性表展示了当前子图内各类节点的渲染覆盖情况。"
+    )
+    st.caption(f"图谱视图聚焦结构化案例与其领域/阶段/结果关系；当前后端：{backend}。更多节点类型仍在图谱中保留。")
+    st.markdown("</div>", unsafe_allow_html=True)

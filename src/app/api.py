@@ -3,9 +3,18 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from core.chat_agent import ConversationAgent
+from core.finance_agent import FinanceAgent
 from core.idea_agent import IdeaCoachAgent
 from core.learning_agent import LearningTutorAgent
-from core.models import ChatRequest, IdeaCoachRequest, IngestRequest, LearningTutorRequest, ProjectCoachRequest, TeacherDashboard
+from core.models import (
+    ChatRequest,
+    FinanceAnalysisRequest,
+    IdeaCoachRequest,
+    IngestRequest,
+    LearningTutorRequest,
+    ProjectCoachRequest,
+    TeacherDashboard,
+)
 from core.ocr.ingest import ingest_directory
 from core.pipeline import ProjectCoachPipeline
 
@@ -15,6 +24,7 @@ pipeline = ProjectCoachPipeline()
 conversation_agent = ConversationAgent()
 idea_coach_agent = IdeaCoachAgent()
 learning_tutor_agent = LearningTutorAgent()
+finance_agent = FinanceAgent()
 
 
 @router.post("/chat/project_coach")
@@ -48,6 +58,11 @@ def chat_learning_tutor(request: LearningTutorRequest):
         project_id=request.project_id,
         include_project_context=request.include_project_context,
     )
+
+
+@router.post("/analysis/finance")
+def analyze_finance(request: FinanceAnalysisRequest):
+    return finance_agent.analyze(request)
 
 
 @router.post("/cases/ingest")

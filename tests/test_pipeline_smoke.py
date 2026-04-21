@@ -72,6 +72,8 @@ def test_pipeline_returns_next_task_and_evidence(tmp_path: Path):
     assert output.structured_diagnosis is not None
     assert output.constraint_validation is not None
     assert output.constraint_validation.passed is True
+    assert output.score_summary is not None
+    assert output.score_summary.weighted_final_score > 0
 
 
 def test_pipeline_handles_non_numeric_llm_refinement_without_crashing(tmp_path: Path):

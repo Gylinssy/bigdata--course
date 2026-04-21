@@ -296,7 +296,11 @@ class ConversationAgent:
                 used_project_id = cleaned_project_id
 
         if payload is None and user_id:
-            candidates = sorted(self.archive_dir.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+            candidates = sorted(
+                self.archive_dir.glob("*.json"),
+                key=lambda path: path.stat().st_mtime_ns,
+                reverse=True,
+            )
             for candidate in candidates:
                 data = self._read_json(candidate)
                 request = data.get("request") if isinstance(data, dict) else None

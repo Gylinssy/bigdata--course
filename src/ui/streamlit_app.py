@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import html
+import hashlib
 import json
 import os
 import re
@@ -10,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
+import pandas as pd
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,13 +23,24 @@ from core.chat_agent import ConversationAgent  # noqa: E402
 from core.case_library import export_structured_chunks  # noqa: E402
 from core.env_utils import load_env_file  # noqa: E402
 from core.evidence import format_evidence  # noqa: E402
+from core.finance_agent import FinanceAgent  # noqa: E402
 from core.idea_agent import IdeaCoachAgent  # noqa: E402
+from core.knowledge_graph import (  # noqa: E402
+    export_knowledge_graph,
+    load_knowledge_graph_snapshot,
+    reset_knowledge_graph_cache,
+    sync_knowledge_graph_to_neo4j,
+)
 from core.learning_agent import LearningTutorAgent  # noqa: E402
-from core.models import ChatMessage, IdeaWorkspace, ProjectCoachRequest  # noqa: E402
+from core.models import ChatMessage, FinanceAnalysisRequest, IdeaWorkspace, ProjectCoachRequest  # noqa: E402
+from core.numeric_utils import coerce_number  # noqa: E402
 from core.ocr.ingest import ingest_directory  # noqa: E402
+from core.plan_export import build_word_plan_document  # noqa: E402
 from core.pipeline import ProjectCoachPipeline  # noqa: E402
+from core.project_stages import STAGE_SEQUENCE, stage_display_name  # noqa: E402
 from core.runtime_log import RuntimeLogger  # noqa: E402
 from core.rule_engine import RuleEngine  # noqa: E402
+from core.scoring import build_item_reports, build_unified_score_output  # noqa: E402
 from ui.auth import (  # noqa: E402
     ROLE_ADMIN,
     ROLE_STUDENT,
@@ -48,6 +61,7 @@ from ui.dashboard_data import (  # noqa: E402
     average_rubric_scores,
     average_score_value,
     build_admin_metrics,
+    build_teacher_dashboard_snapshot,
     high_risk_projects,
     load_records_or_mock,
     top_rule_counts,
@@ -55,6 +69,7 @@ from ui.dashboard_data import (  # noqa: E402
 from ui.styles import inject_styles  # noqa: E402
 from ui.visuals import (  # noqa: E402
     render_hypergraph_visualization,
+    render_knowledge_graph_visualization,
     render_rule_bar_chart,
     render_rule_status_cards,
     render_score_bar_chart,
@@ -130,6 +145,11 @@ def build_learning_agent() -> LearningTutorAgent:
 
 
 @st.cache_resource
+def build_finance_agent() -> FinanceAgent:
+    return FinanceAgent()
+
+
+@st.cache_resource
 def build_idea_agent() -> IdeaCoachAgent:
     return IdeaCoachAgent()
 
@@ -159,6 +179,10 @@ def ensure_app_state() -> None:
     st.session_state.setdefault("active_chat_id", None)
     st.session_state.setdefault("learning_reply", "")
     st.session_state.setdefault("learning_debug", None)
+    st.session_state.setdefault("finance_result", None)
+    st.session_state.setdefault("finance_debug", None)
+    st.session_state.setdefault("word_export_ai_polish", True)
+    st.session_state.setdefault("word_export_cache", None)
     st.session_state.setdefault("competition_template", list(COMPETITION_TEMPLATES.keys())[0])
     st.session_state.setdefault(
         "teacher_intervention",
@@ -270,6 +294,21 @@ def detect_invalid_project_text(text: str) -> str | None:
     if any(marker in cleaned for marker in EMOTIONAL_MARKERS):
         return "先别着急交完整稿。请先提交最小信息：目标用户、核心问题、一个可验证假设。"
     return None
+
+
+def parse_optional_number(text: str) -> float | None:
+    cleaned = text.strip()
+    if not cleaned:
+        return None
+    return coerce_number(cleaned)
+
+
+def format_finance_input(value: float | None) -> str:
+    if value is None:
+        return ""
+    if float(value).is_integer():
+        return str(int(value))
+    return f"{value:.2f}"
 
 
 def log_unauthorized_attempt(role: str | None, requested: str | None, redirected: str | None) -> None:
@@ -466,6 +505,178 @@ def run_diagnosis_from_text(project_text: str, project_id: str) -> None:
     st.session_state["student_last_project_id"] = project_id
 
 
+def build_competition_export_payload() -> dict | None:
+    payload = st.session_state.get("student_result")
+    if not payload:
+        return None
+
+    template_names = list(COMPETITION_TEMPLATES.keys())
+    template_name = st.session_state.get("competition_template", template_names[0])
+    config = COMPETITION_TEMPLATES.get(template_name) or COMPETITION_TEMPLATES[template_names[0]]
+    weights: dict[str, float] = config["weights"]  # type: ignore[assignment]
+    rubric_scores = payload["output"].get("rubric_scores", [])
+    rubric_meta_map = {item["rubric_id"]: item for item in build_pipeline().rubric_scorer.rubrics}
+
+    weighted_sum = 0.0
+    weight_total = 0.0
+    for item in rubric_scores:
+        rubric_id = item.get("rubric_id")
+        weight = weights.get(rubric_id, 0.0)
+        score = float(item.get("score", 0))
+        weighted_sum += score * weight
+        weight_total += weight
+
+    score_summary = build_unified_score_output(
+        rubric_scores,
+        rules=payload["output"].get("detected_rules", []),
+        rubric_meta_map=rubric_meta_map,
+        weights=weights,
+        template_name=template_name,
+    )
+    return {
+        "template_name": template_name,
+        "average_score": score_summary.average_score,
+        "final_score": score_summary.weighted_final_score if weight_total > 0 else round((weighted_sum / weight_total), 2) if weight_total > 0 else 0.0,
+        "score_band": score_summary.score_band,
+        "stage_key": score_summary.stage_key,
+        "stage_label": score_summary.stage_label,
+        "summary": score_summary.summary,
+        "dimensions": [item.model_dump(mode="json") for item in score_summary.dimensions],
+        "item_reports": build_item_reports(score_summary),
+    }
+
+
+def compute_word_export_signature(
+    *,
+    idea_output: dict | None,
+    diagnosis_payload: dict | None,
+    finance_payload: dict | None,
+    competition_payload: dict | None,
+    idea_messages: list[dict],
+    ai_polish: bool,
+) -> str:
+    payload = {
+        "idea_output": idea_output,
+        "diagnosis_payload": diagnosis_payload,
+        "finance_payload": finance_payload,
+        "competition_payload": competition_payload,
+        "idea_messages": idea_messages,
+        "ai_polish": ai_polish,
+    }
+    normalized = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def render_word_plan_export_panel() -> None:
+    idea_output = st.session_state.get("idea_output")
+    diagnosis_payload = st.session_state.get("student_result")
+    finance_payload = st.session_state.get("finance_result")
+    idea_messages = st.session_state.get("idea_messages") or []
+    competition_payload = build_competition_export_payload() if diagnosis_payload else None
+
+    has_content = any((idea_output, diagnosis_payload, finance_payload, idea_messages))
+    ai_polish = st.session_state.get("word_export_ai_polish", True)
+    export_signature = compute_word_export_signature(
+        idea_output=idea_output,
+        diagnosis_payload=diagnosis_payload,
+        finance_payload=finance_payload,
+        competition_payload=competition_payload,
+        idea_messages=idea_messages,
+        ai_polish=ai_polish,
+    )
+    export_cache = st.session_state.get("word_export_cache") or {}
+    docx_filename = export_cache.get("filename", "")
+    docx_bytes = export_cache.get("bytes", b"")
+    export_error = export_cache.get("error")
+    export_ready = export_cache.get("signature") == export_signature and bool(docx_bytes)
+
+    info_col, action_col = st.columns([1.45, 0.75], gap="large")
+    with info_col:
+        st.markdown(
+            """
+            <div class="surface-card">
+              <div class="surface-title">Word 计划书导出</div>
+              <div class="surface-copy">
+                自动汇总 A0 Idea 草案、A2-A4 诊断、财务分析和 A5 路演评分。
+                现在支持在导出前启用 AI 润色与格式优化，正文会被重组为更适合提交的项目书表达，附录与过程摘录保持原文不改写。
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with action_col:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        ai_polish = st.checkbox(
+            "启用 AI 润色与格式优化",
+            value=ai_polish,
+            key="word_export_ai_polish",
+            help="会润色项目书正文表达，但保留附录原始内容和过程摘录。",
+        )
+        export_signature = compute_word_export_signature(
+            idea_output=idea_output,
+            diagnosis_payload=diagnosis_payload,
+            finance_payload=finance_payload,
+            competition_payload=competition_payload,
+            idea_messages=idea_messages,
+            ai_polish=ai_polish,
+        )
+        export_cache = st.session_state.get("word_export_cache") or {}
+        docx_filename = export_cache.get("filename", "")
+        docx_bytes = export_cache.get("bytes", b"")
+        export_error = export_cache.get("error")
+        export_ready = export_cache.get("signature") == export_signature and bool(docx_bytes)
+        if not has_content:
+            st.info("先至少生成一项 Idea 草案、诊断结果或财务分析。")
+        elif st.button("生成 Word 计划书", use_container_width=True, type="primary", key="generate_word_plan_button"):
+            with st.spinner("正在整理内容并生成 Word 计划书..."):
+                try:
+                    docx_filename, docx_bytes = build_word_plan_document(
+                        idea_output=idea_output,
+                        diagnosis_payload=diagnosis_payload,
+                        finance_payload=finance_payload,
+                        competition_payload=competition_payload,
+                        idea_messages=idea_messages,
+                        beautify_with_ai=ai_polish,
+                    )
+                    st.session_state["word_export_cache"] = {
+                        "signature": export_signature,
+                        "filename": docx_filename,
+                        "bytes": docx_bytes,
+                        "error": None,
+                    }
+                    export_ready = True
+                    export_error = None
+                except Exception as exc:
+                    st.session_state["word_export_cache"] = {
+                        "signature": export_signature,
+                        "filename": "",
+                        "bytes": b"",
+                        "error": exc,
+                    }
+                    export_ready = False
+                    export_error = exc
+        elif export_cache.get("signature") not in (None, export_signature):
+            st.info("内容或导出选项已变化，请重新生成最新 Word 计划书。")
+
+        if export_error is not None:
+            st.warning(f"计划书生成失败：{export_error}")
+        elif export_ready:
+            st.download_button(
+                "下载 Word 计划书",
+                data=docx_bytes,
+                file_name=docx_filename,
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+                type="secondary",
+                key="download_word_plan_button",
+            )
+            st.caption("正文已按当前配置生成；附录和过程摘录保留原始内容。")
+        elif has_content:
+            st.caption("点击上方按钮生成一版可下载的 Word 计划书。")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_login_page() -> None:
     st.markdown('<div class="login-shell">', unsafe_allow_html=True)
     hero_col, panel_col = st.columns([1.34, 0.9], gap="large")
@@ -624,6 +835,9 @@ def render_sidebar() -> None:
 def render_status_panel() -> None:
     ensure_env_loaded()
     api_key = os.getenv("DEEPSEEK_API_KEY")
+    kg_snapshot = load_knowledge_graph_snapshot(write_cache=False)
+    neo4j_uri = os.getenv("NEO4J_URI", "")
+    neo4j_user = os.getenv("NEO4J_USER", "")
     st.markdown(
         f"""
         <div class="surface-card">
@@ -632,12 +846,17 @@ def render_status_panel() -> None:
             API Key：{"已配置" if api_key else "未配置"}<br/>
             Chat Base URL：{html.escape(os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"))}<br/>
             OCR Base URL：{html.escape(os.getenv("DEEPSEEK_OCR_BASE_URL", "未配置"))}<br/>
-            案例索引目录：{html.escape(os.getenv("CASE_INDEX_DIR", "outputs/cases/index"))}
+            案例索引目录：{html.escape(os.getenv("CASE_INDEX_DIR", "outputs/cases/index"))}<br/>
+            KG Backend：{html.escape(kg_snapshot.get("backend", "case_library"))}<br/>
+            Neo4j URI：{html.escape(neo4j_uri or "未配置")}<br/>
+            Neo4j 用户：{html.escape(neo4j_user or "未配置")}
           </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    if kg_snapshot.get("error"):
+        st.caption(f"知识图谱回读告警：{kg_snapshot['error']}")
     recent_events = list(reversed(RuntimeLogger().read_recent(limit=12)))
     with st.expander("最近运行日志", expanded=False):
         if recent_events:
@@ -986,6 +1205,221 @@ def render_student_learning_panel() -> None:
             st.json(learning_debug)
 
 
+def render_student_finance_panel() -> None:
+    payload = st.session_state.get("student_result") or {}
+    request_payload = payload.get("request") if isinstance(payload, dict) else {}
+    default_summary = (request_payload or {}).get("project_text", "")
+
+    st.markdown(
+        """
+        <div class="hero-card">
+          <div class="hero-kicker">A2 × Finance</div>
+          <div class="hero-title">财务管理与商业化可行性分析</div>
+          <div class="hero-copy">
+            输入常见财务口径后，系统会自动完成基础测算，并结合 AI Agent 判断项目的商业化可行性与下一步优先动作。
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    guide_col, hint_col = st.columns([1.15, 0.85], gap="large")
+    with guide_col:
+        with st.form("finance_management_form"):
+            project_summary = st.text_area(
+                "项目简述",
+                value=default_summary,
+                height=120,
+                placeholder="简述你的项目、目标用户、收费方式和当前商业化阶段。",
+            )
+
+            st.markdown("**收入与销量口径**")
+            revenue_col1, revenue_col2, revenue_col3 = st.columns(3)
+            with revenue_col1:
+                unit_price_text = st.text_input("单价 / 客单价", placeholder="例如：199")
+            with revenue_col2:
+                unit_variable_cost_text = st.text_input("单笔变动成本", placeholder="例如：69")
+            with revenue_col3:
+                monthly_sales_volume_text = st.text_input("月销量 / 月订单量", placeholder="例如：300")
+
+            st.markdown("**成本与现金口径**")
+            cost_col1, cost_col2, cost_col3 = st.columns(3)
+            with cost_col1:
+                monthly_fixed_cost_text = st.text_input("月固定成本", placeholder="例如：8000")
+                monthly_marketing_cost_text = st.text_input("月营销费用", placeholder="例如：3000")
+            with cost_col2:
+                monthly_team_cost_text = st.text_input("月团队成本", placeholder="例如：12000")
+                monthly_other_cost_text = st.text_input("月其他成本", placeholder="例如：2000")
+            with cost_col3:
+                cash_on_hand_text = st.text_input("账上现金", placeholder="例如：180000")
+                upfront_investment_text = st.text_input("一次性前期投入", placeholder="例如：20000")
+
+            st.markdown("**获客与生命周期口径**")
+            growth_col1, growth_col2, growth_col3 = st.columns(3)
+            with growth_col1:
+                new_customers_per_month_text = st.text_input("月新增客户数", placeholder="例如：120")
+            with growth_col2:
+                cac_text = st.text_input("手工输入 CAC（可留空）", placeholder="例如：25")
+            with growth_col3:
+                avg_orders_text = st.text_input("单客年均购买次数", placeholder="例如：6")
+                lifetime_months_text = st.text_input("客户生命周期（月）", placeholder="例如：18")
+
+            submitted = st.form_submit_button("生成财务分析", use_container_width=True, type="primary")
+
+        if submitted:
+            raw_fields = {
+                "单价 / 客单价": unit_price_text,
+                "单笔变动成本": unit_variable_cost_text,
+                "月销量 / 月订单量": monthly_sales_volume_text,
+                "月固定成本": monthly_fixed_cost_text,
+                "月营销费用": monthly_marketing_cost_text,
+                "月团队成本": monthly_team_cost_text,
+                "月其他成本": monthly_other_cost_text,
+                "账上现金": cash_on_hand_text,
+                "一次性前期投入": upfront_investment_text,
+                "月新增客户数": new_customers_per_month_text,
+                "手工输入 CAC（可留空）": cac_text,
+                "单客年均购买次数": avg_orders_text,
+                "客户生命周期（月）": lifetime_months_text,
+            }
+            parsed_fields = {label: parse_optional_number(value) for label, value in raw_fields.items()}
+            invalid_fields = [label for label, raw in raw_fields.items() if raw.strip() and parsed_fields[label] is None]
+            if invalid_fields:
+                st.warning(f"这些字段无法识别为数字：{', '.join(invalid_fields)}")
+            elif not project_summary.strip() and not default_summary.strip():
+                st.warning("请至少补一段项目简述，便于 AI Agent 判断商业化场景。")
+            else:
+                user = current_user(st.session_state) or {}
+                response = build_finance_agent().analyze(
+                    FinanceAnalysisRequest(
+                        user_id=user.get("username"),
+                        project_id=(request_payload or {}).get("project_id") or st.session_state.get("student_last_project_id"),
+                        include_project_context=True,
+                        project_summary=project_summary.strip() or default_summary,
+                        unit_price=parsed_fields["单价 / 客单价"],
+                        unit_variable_cost=parsed_fields["单笔变动成本"],
+                        monthly_sales_volume=parsed_fields["月销量 / 月订单量"],
+                        monthly_fixed_cost=parsed_fields["月固定成本"],
+                        monthly_marketing_cost=parsed_fields["月营销费用"],
+                        monthly_team_cost=parsed_fields["月团队成本"],
+                        monthly_other_cost=parsed_fields["月其他成本"],
+                        cash_on_hand=parsed_fields["账上现金"],
+                        upfront_investment=parsed_fields["一次性前期投入"],
+                        new_customers_per_month=parsed_fields["月新增客户数"],
+                        cac=parsed_fields["手工输入 CAC（可留空）"],
+                        average_orders_per_customer_per_year=parsed_fields["单客年均购买次数"],
+                        customer_lifetime_months=parsed_fields["客户生命周期（月）"],
+                    )
+                )
+                st.session_state["finance_result"] = response.model_dump(mode="json")
+                st.session_state["finance_debug"] = {
+                    "agent_name": "finance_agent",
+                    "used_llm": response.used_llm,
+                    "model": response.model,
+                    "context_used": response.context_used,
+                    "context_project_id": response.context_project_id,
+                    "structured_output": response.structured_output.model_dump(mode="json"),
+                }
+                st.success("财务测算与商业化分析已生成。")
+
+    with hint_col:
+        st.markdown(
+            """
+            <div class="surface-card">
+              <div class="surface-title">建议输入顺序</div>
+              <div class="surface-copy">
+                1. 先补单价、变动成本、月销量，判断一单到底赚不赚钱。<br/>
+                2. 再补团队、营销、固定成本，判断月度是否打平。<br/>
+                3. 最后补 CAC、复购和生命周期，判断商业化是否能长期成立。
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            """
+            <div class="surface-card">
+              <div class="surface-title">本页会自动计算</div>
+              <div class="surface-copy">
+                月收入、毛利率、净利润、盈亏平衡销量、有效 CAC、估算 LTV、LTV/CAC、现金跑道、获客回本期。
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    finance_payload = st.session_state.get("finance_result")
+    if not finance_payload:
+        st.markdown('<div class="placeholder-card">还没有财务分析结果，请先填写财务口径并生成一次。</div>', unsafe_allow_html=True)
+        return
+
+    output = finance_payload["structured_output"]
+    metrics = output.get("metrics", [])
+    metric_map = {item.get("key"): item for item in metrics if isinstance(item, dict)}
+
+    render_summary_metrics(
+        [
+            {"label": "商业化健康度", "value": output.get("health", "conditional"), "footnote": "Finance Agent 综合判断"},
+            {"label": "月收入", "value": metric_map.get("monthly_revenue", {}).get("display", "—"), "footnote": "当前模型下的收入规模"},
+            {"label": "月净利润", "value": metric_map.get("monthly_net_profit", {}).get("display", "—"), "footnote": "收入减去全部成本后的结果"},
+            {"label": "LTV/CAC", "value": metric_map.get("ltv_cac_ratio", {}).get("display", "—"), "footnote": "获客回报关系"},
+            {"label": "现金跑道", "value": metric_map.get("runway_months", {}).get("display", "—"), "footnote": "按当前烧钱速度可支撑时间"},
+        ]
+    )
+
+    overview_col, metric_col = st.columns([1.05, 0.95], gap="large")
+    with overview_col:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">AI 商业化分析</div>', unsafe_allow_html=True)
+        st.write(finance_payload.get("reply", "暂无分析结果。"))
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">优势与风险</div>', unsafe_allow_html=True)
+        st.markdown("**优势信号**")
+        for item in output.get("strengths", []):
+            st.write(f"- {item}")
+        st.markdown("**风险信号**")
+        for item in output.get("risks", []):
+            st.write(f"- {item}")
+        st.markdown("**当前口径假设**")
+        for item in output.get("assumptions", []):
+            st.write(f"- {item}")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with metric_col:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">财务指标明细</div>', unsafe_allow_html=True)
+        metric_rows = [
+            {
+                "指标": item.get("name"),
+                "结果": item.get("display"),
+                "说明": item.get("note"),
+            }
+            for item in metrics
+        ]
+        st.dataframe(metric_rows, use_container_width=True, hide_index=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        chart_keys = ["monthly_revenue", "monthly_total_cost", "gross_profit", "monthly_net_profit"]
+        chart_rows = []
+        for key in chart_keys:
+            item = metric_map.get(key)
+            if item and item.get("value") is not None:
+                chart_rows.append({"name": item.get("name"), "value": float(item["value"])})
+        if chart_rows:
+            st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+            st.markdown('<div class="surface-title">收入与成本对比</div>', unsafe_allow_html=True)
+            chart_df = pd.DataFrame(chart_rows).set_index("name")
+            st.bar_chart(chart_df[["value"]], use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    finance_debug = st.session_state.get("finance_debug")
+    if finance_debug:
+        with st.expander("调试日志（Finance Agent）", expanded=False):
+            st.json(finance_debug)
+
+
 def render_student_competition_panel() -> None:
     st.markdown(
         """
@@ -1015,25 +1449,31 @@ def render_student_competition_panel() -> None:
 
     rubric_scores = payload["output"].get("rubric_scores", [])
     rubric_meta_map = {item["rubric_id"]: item for item in build_pipeline().rubric_scorer.rubrics}
-    weighted_sum = 0.0
-    weight_total = 0.0
+    score_summary = build_unified_score_output(
+        rubric_scores,
+        rules=payload["output"].get("detected_rules", []),
+        rubric_meta_map=rubric_meta_map,
+        weights=weights,
+        template_name=template_name,
+    )
     weighted_rows = []
-    for item in rubric_scores:
-        rubric_id = item.get("rubric_id")
-        weight = weights.get(rubric_id, 0.0)
-        score = float(item.get("score", 0))
-        weighted = round(score * weight, 3)
-        weighted_rows.append({"name": f"{item.get('name')} (w={weight:.2f})", "score": weighted})
-        weighted_sum += weighted
-        weight_total += weight
-    final_score = round((weighted_sum / weight_total), 2) if weight_total > 0 else 0.0
-    item_reports = build_competition_item_reports(rubric_scores, rubric_meta_map)
+    for item in score_summary.dimensions:
+        weighted_rows.append({"name": f"{item.name} (w={item.weight:.2f})", "score": round(item.weighted_score, 3)})
+    final_score = score_summary.weighted_final_score
+    item_reports = build_item_reports(score_summary)
 
     render_summary_metrics(
         [
             {"label": "模板", "value": template_name, "footnote": "动态切换评分口径"},
             {"label": "加权总分", "value": f"{final_score}/5", "footnote": "依据模板权重计算"},
             {"label": "维度覆盖率", "value": "100%", "footnote": "按当前 Rubric 完整覆盖"},
+        ]
+    )
+    render_summary_metrics(
+        [
+            {"label": "当前阶段", "value": score_summary.stage_label, "footnote": score_summary.score_band},
+            {"label": "均分", "value": f"{score_summary.average_score}/5", "footnote": "统一评分输出"},
+            {"label": "证据覆盖率", "value": f"{round(score_summary.evidence_coverage_ratio * 100, 1)}%", "footnote": "按维度统计"},
         ]
     )
     st.markdown('<div class="surface-card">', unsafe_allow_html=True)
@@ -1060,8 +1500,9 @@ def render_student_competition_panel() -> None:
 
 
 def render_student_page() -> None:
-    idea_tab, diagnose_tab, learning_tab, competition_tab, chat_tab = st.tabs(
-        ["Idea 孵化（A0）", "项目诊断（A2-A4）", "学习辅导（A1）", "路演评分（A5）", "追问对话"]
+    render_word_plan_export_panel()
+    idea_tab, diagnose_tab, learning_tab, finance_tab, competition_tab, chat_tab = st.tabs(
+        ["Idea 孵化（A0）", "项目诊断（A2-A4）", "学习辅导（A1）", "财务管理", "路演评分（A5）", "追问对话"]
     )
     with idea_tab:
         render_student_idea_panel()
@@ -1069,6 +1510,8 @@ def render_student_page() -> None:
         render_student_diagnosis_panel()
     with learning_tab:
         render_student_learning_panel()
+    with finance_tab:
+        render_student_finance_panel()
     with competition_tab:
         render_student_competition_panel()
     with chat_tab:
@@ -1160,8 +1603,10 @@ def render_teacher_page() -> None:
     avg_scores = average_rubric_scores(records)
     rule_rows = top_rule_counts(records)
     risky_projects = high_risk_projects(records)
+    dashboard_snapshot = build_teacher_dashboard_snapshot(records)
     selected_project_id = st.selectbox("选择项目", [record["project_id"] for record in records], index=0)
     selected_record = next(record for record in records if record["project_id"] == selected_project_id)
+    selected_score_summary = selected_record.get("score_summary", {})
 
     st.markdown(
         """
@@ -1181,6 +1626,14 @@ def render_teacher_page() -> None:
             {"label": "项目总数", "value": str(len(records)), "footnote": "已归档可评估项目"},
             {"label": "高风险项目", "value": str(len(risky_projects)), "footnote": "命中 high_risk 规则"},
             {"label": "平均评分", "value": f"{average_score_value(records)}/5", "footnote": "全班 Rubric 综合均值"},
+        ]
+    )
+
+    render_summary_metrics(
+        [
+            {"label": "统一评分均值", "value": f"{dashboard_snapshot['average_score']}/5", "footnote": "加权后的班级综合均值"},
+            {"label": "薄弱维度数", "value": str(len(dashboard_snapshot["weakest_dimensions"])), "footnote": "教师端需优先讲评的维度"},
+            {"label": "阶段分布数", "value": str(len(dashboard_snapshot["stage_distribution"])), "footnote": "当前班级覆盖的阶段子图"},
         ]
     )
 
@@ -1231,21 +1684,62 @@ def render_teacher_page() -> None:
                 "rule_trigger_frequency": rule_frequency,
             }
         )
+        st.markdown("**Stage Distribution**")
+        if dashboard_snapshot["stage_distribution"]:
+            st.json(dashboard_snapshot["stage_distribution"])
+        else:
+            st.write("- 暂无阶段分布数据")
+        st.markdown("**Stage Insights**")
+        if dashboard_snapshot["stage_insights"]:
+            st.dataframe(dashboard_snapshot["stage_insights"], use_container_width=True, hide_index=True)
+        else:
+            st.write("- 暂无阶段洞察")
+        st.markdown("**Unified Score Weaknesses**")
+        if dashboard_snapshot["low_score_hotspots"]:
+            st.dataframe(dashboard_snapshot["low_score_hotspots"], use_container_width=True, hide_index=True)
+        else:
+            st.write("- 暂无低分热点")
+        st.markdown("**Priority Projects**")
+        if dashboard_snapshot["project_rankings"]:
+            st.dataframe(dashboard_snapshot["project_rankings"], use_container_width=True, hide_index=True)
+        else:
+            st.write("- 暂无项目排行")
+        st.markdown("**Stage-Aware Suggestions**")
+        for suggestion in dashboard_snapshot["intervention_suggestions"]:
+            st.write(f"- {suggestion}")
 
     with score_tab:
         chart_col, info_col = st.columns([1.15, 0.85])
         with chart_col:
             st.markdown('<div class="surface-card">', unsafe_allow_html=True)
             st.markdown(f'<div class="surface-title">项目评分 · {html.escape(selected_project_id)}</div>', unsafe_allow_html=True)
-            render_score_cards(selected_record.get("rubric_scores", []))
-            render_score_bar_chart(selected_record.get("rubric_scores", []))
+            render_summary_metrics(
+                [
+                    {"label": "综合评分", "value": f"{selected_record.get('weighted_final_score', 0.0)}/5", "footnote": selected_score_summary.get("score_band", "stable")},
+                    {"label": "当前阶段", "value": selected_score_summary.get("stage_label", "未知阶段"), "footnote": "来自统一评分输出"},
+                    {"label": "证据覆盖率", "value": f"{round(float(selected_score_summary.get('evidence_coverage_ratio', 0.0)) * 100, 1)}%", "footnote": "按评分维度统计"},
+                ]
+            )
+            render_score_cards(selected_record.get("score_dimensions", selected_record.get("rubric_scores", [])))
+            render_score_bar_chart(selected_record.get("score_dimensions", selected_record.get("rubric_scores", [])))
             st.markdown("</div>", unsafe_allow_html=True)
         with info_col:
             st.markdown('<div class="surface-card">', unsafe_allow_html=True)
             st.markdown('<div class="surface-title">诊断摘要</div>', unsafe_allow_html=True)
             st.write(selected_record.get("current_diagnosis"))
+            if selected_score_summary.get("summary"):
+                st.markdown("**统一评分摘要**")
+                st.write(selected_score_summary.get("summary"))
             st.markdown("**下一步建议**")
             st.write(selected_record.get("next_task"))
+            if selected_record.get("weakest_dimensions"):
+                st.markdown("**薄弱维度**")
+                for item in selected_record.get("weakest_dimensions", []):
+                    st.write(f"- {item}")
+            if selected_record.get("strongest_dimensions"):
+                st.markdown("**优势维度**")
+                for item in selected_record.get("strongest_dimensions", []):
+                    st.write(f"- {item}")
             st.markdown("**规则状态**")
             render_rule_status_cards(
                 [{"rule_id": rule_id, "status": status, "message": ""} for rule_id, status in selected_record.get("rule_statuses", {}).items()]
@@ -1255,11 +1749,19 @@ def render_teacher_page() -> None:
     with assess_tab:
         st.markdown('<div class="surface-card">', unsafe_allow_html=True)
         st.markdown('<div class="surface-title">A6-1 批改报告</div>', unsafe_allow_html=True)
-        st.markdown("**Rubric Table**")
+        st.markdown("**Unified Score Table**")
         st.dataframe(
             [
-                {"Rubric": item.get("name"), "Score": item.get("score"), "Rationale": item.get("rationale")}
-                for item in selected_record.get("rubric_scores", [])
+                {
+                    "Rubric": item.get("name"),
+                    "Score": item.get("score"),
+                    "Band": item.get("score_band", ""),
+                    "Rationale": item.get("rationale"),
+                    "Missing": "；".join(item.get("missing_evidence", [])) if item.get("missing_evidence") else "证据基本齐全",
+                    "Fix 24h": item.get("fix_24h", ""),
+                    "Fix 72h": item.get("fix_72h", ""),
+                }
+                for item in selected_record.get("score_dimensions", selected_record.get("rubric_scores", []))
             ],
             use_container_width=True,
             hide_index=True,
@@ -1473,25 +1975,134 @@ def render_asset_precheck_panel(rule_engine: RuleEngine) -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+def render_knowledge_graph_panel() -> None:
+    ensure_env_loaded()
+    snapshot = load_knowledge_graph_snapshot(write_cache=True)
+    graph = snapshot["graph"]
+    backend = snapshot.get("backend", "case_library")
+    neo4j_uri = os.getenv("NEO4J_URI", "")
+    neo4j_user = os.getenv("NEO4J_USER", "")
+    neo4j_password = os.getenv("NEO4J_PASSWORD", "")
+    neo4j_database = os.getenv("NEO4J_DATABASE", "neo4j")
+    stage_options = ["all", *STAGE_SEQUENCE]
+    filter_col, mode_col = st.columns([1.2, 1])
+    selected_stage = filter_col.selectbox(
+        "阶段子图",
+        stage_options,
+        index=0,
+        format_func=lambda item: "全部阶段" if item == "all" else stage_display_name(item),
+        key="kg_stage_filter",
+    )
+    cumulative = mode_col.checkbox("累计前序阶段", value=True, key="kg_stage_cumulative", disabled=selected_stage == "all")
+
+    render_knowledge_graph_visualization(
+        graph,
+        backend=backend,
+        max_cases=12,
+        stage_key=None if selected_stage == "all" else selected_stage,
+        cumulative=cumulative,
+    )
+
+    action_col, detail_col = st.columns([0.9, 1.1], gap="large")
+    with action_col:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">图谱操作</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="surface-copy">知识图谱由当前结构化案例库自动生成，可本地缓存，也可同步到 Neo4j 供后续检索与可视化使用。</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button("重建知识图谱缓存", key="rebuild_knowledge_graph", use_container_width=True, type="primary"):
+            graph = export_knowledge_graph(ROOT / "outputs/graphs/knowledge_graph.json")
+            reset_knowledge_graph_cache()
+            snapshot = load_knowledge_graph_snapshot(write_cache=False)
+            st.success(f"知识图谱缓存已重建：{graph['node_count']} 个节点，{graph['relationship_count']} 条关系。")
+        if st.button("同步知识图谱到 Neo4j", key="sync_knowledge_graph", use_container_width=True, type="secondary"):
+            if not neo4j_uri or not neo4j_user or not neo4j_password:
+                st.warning("Neo4j 环境变量未配置，无法同步。")
+            else:
+                graph = export_knowledge_graph(ROOT / "outputs/graphs/knowledge_graph.json")
+                result = sync_knowledge_graph_to_neo4j(
+                    graph,
+                    uri=neo4j_uri,
+                    username=neo4j_user,
+                    password=neo4j_password,
+                    database=neo4j_database,
+                )
+                reset_knowledge_graph_cache()
+                st.success(f"已同步到 Neo4j：{result['nodes']} 个节点，{result['relationships']} 条关系。")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with detail_col:
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">图谱来源与状态</div>', unsafe_allow_html=True)
+        st.write(f"- 当前 backend：`{backend}`")
+        st.write(f"- 节点数：`{graph.get('node_count', len(graph.get('nodes', [])))}`")
+        st.write(f"- 关系数：`{graph.get('relationship_count', len(graph.get('relationships', [])))}`")
+        st.write(f"- Neo4j URI：`{neo4j_uri or '未配置'}`")
+        st.write(f"- Neo4j 用户：`{neo4j_user or '未配置'}`")
+        if snapshot.get("error"):
+            st.warning(f"Neo4j 回读失败，当前已回退到 `{backend}`：{snapshot['error']}")
+        sample_nodes = graph.get("nodes", [])[:8]
+        if sample_nodes:
+            st.markdown("**示例节点**")
+            st.dataframe(
+                [
+                    {
+                        "node_id": item.get("node_id"),
+                        "label": item.get("label"),
+                        "name": item.get("name"),
+                        "source": item.get("source"),
+                    }
+                    for item in sample_nodes
+                ],
+                use_container_width=True,
+                hide_index=True,
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render_function_center() -> None:
     rule_engine = build_rule_engine()
     st.markdown(
         """
         <div class="hero-card">
           <div class="hero-kicker">Function Center</div>
-          <div class="hero-title">约束可视化、案例 OCR 与系统配置</div>
-          <div class="hero-copy">功能中心不承载学生主交互，只保留规则、约束、资产预检、索引和环境配置能力。</div>
+          <div class="hero-title">约束图谱、知识图谱、案例 OCR 与系统配置</div>
+          <div class="hero-copy">功能中心不承载学生主交互，只保留规则、图谱、资产预检、索引和环境配置能力。</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    hyper_tab, ingest_tab, precheck_tab, config_tab = st.tabs(["超图约束可视化", "案例 OCR", "资产预检", "系统配置"])
+    hyper_tab, kg_tab, ingest_tab, precheck_tab, config_tab = st.tabs(
+        ["超图约束可视化", "知识图谱", "案例 OCR", "资产预检", "系统配置"]
+    )
     with hyper_tab:
         st.markdown('<div class="surface-card">', unsafe_allow_html=True)
-        render_hypergraph_visualization(rule_engine.rule_specs)
+        stage_options = ["all", *STAGE_SEQUENCE]
+        filter_col, mode_col = st.columns([1.2, 1])
+        selected_stage = filter_col.selectbox(
+            "阶段子图",
+            stage_options,
+            index=0,
+            format_func=lambda item: "全部阶段" if item == "all" else stage_display_name(item),
+            key="hyper_stage_filter",
+        )
+        cumulative = mode_col.checkbox(
+            "累计前序阶段",
+            value=True,
+            key="hyper_stage_cumulative",
+            disabled=selected_stage == "all",
+        )
+        render_hypergraph_visualization(
+            rule_engine.rule_specs,
+            stage_key=None if selected_stage == "all" else selected_stage,
+            cumulative=cumulative,
+        )
         st.caption("仅展示超图视图，规则详情默认隐藏。")
         st.markdown("</div>", unsafe_allow_html=True)
+    with kg_tab:
+        render_knowledge_graph_panel()
     with ingest_tab:
         render_ingest_panel()
     with precheck_tab:

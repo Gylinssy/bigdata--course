@@ -54,7 +54,7 @@ def build_asset_scale_report(
     actuals = {
         "rubric_count": _count_rubrics(rubric_path),
         "competition_template_count": len(competition_templates),
-        "kg_entity_count": len(load_kg_nodes(kg_nodes_path)),
+        "kg_entity_count": len(load_kg_nodes(kg_nodes_path, cases_path=structured_cases_path)),
         "structured_case_count": count_valid_structured_cases(structured_cases_path),
         "hyperedge_count": len(rule_specs),
         "rule_count": len(rule_specs),

@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 from core.chat_agent import ConversationAgent
@@ -91,8 +92,9 @@ def test_conversation_agent_auto_picks_latest_context_by_user_id(tmp_path: Path)
         ),
         encoding="utf-8",
     )
-    # Ensure mtime ordering for deterministic selection.
-    newer.touch()
+    # Ensure mtime ordering explicitly for file systems with coarse timestamp resolution.
+    os.utime(older, (1_700_000_000, 1_700_000_000))
+    os.utime(newer, (1_700_000_010, 1_700_000_010))
 
     llm = DummyOnlineClient()
     agent = ConversationAgent(llm_client=llm, archive_dir=tmp_path)

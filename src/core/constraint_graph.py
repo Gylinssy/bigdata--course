@@ -10,6 +10,7 @@ from typing import Any
 import yaml
 
 from .case_library import build_case_retrieval_text, load_structured_cases
+from .project_stages import bucket_rule_stage, stage_display_name, stage_scope
 from .pressure_trace import EDGE_TYPE_BY_RULE, FALLACY_BY_RULE, STRATEGY_BY_RULE, load_strategy_pool
 from .rule_engine import RuleEngine
 
@@ -536,6 +537,9 @@ class ConstraintGraphView:
     def cases_for_rule(self, rule_id: str, limit: int = 3) -> list[dict[str, Any]]:
         return self.rule_context(rule_id).get("cases", [])[:limit]
 
+    def stage_subgraph(self, stage_key: str | None = None, *, cumulative: bool = True) -> dict[str, Any]:
+        return build_stage_constraint_subgraph(self.graph, stage_key=stage_key, cumulative=cumulative)
+
 
 @lru_cache(maxsize=1)
 def load_constraint_graph(
@@ -550,3 +554,98 @@ def load_constraint_graph(
         export_constraint_graph(target)
     graph = json.loads(target.read_text(encoding="utf-8"))
     return ConstraintGraphView(graph)
+
+
+def build_stage_constraint_subgraph(
+    graph: dict[str, Any],
+    *,
+    stage_key: str | None = None,
+    cumulative: bool = True,
+    max_hops: int = 2,
+) -> dict[str, Any]:
+    nodes = graph.get("nodes", [])
+    relationships = graph.get("relationships", [])
+    node_map = {node.get("node_id"): node for node in nodes if node.get("node_id")}
+    allowed_stages = set(stage_scope(stage_key, cumulative=cumulative))
+
+    if not node_map:
+        return {
+            "graph_id": f"{graph.get('graph_id', 'constraint_graph')}::stage:empty",
+            "description": "Stage hypergraph subgraph.",
+            "node_count": 0,
+            "relationship_count": 0,
+            "stage_key": stage_key or "all",
+            "stage_label": stage_display_name(stage_key or "idea") if stage_key else "全部阶段",
+            "stage_scope": stage_scope(stage_key, cumulative=cumulative),
+            "nodes": [],
+            "relationships": [],
+            "rule_count": 0,
+            "node_type_counts": {},
+            "source_graph_id": graph.get("graph_id", "constraint_graph"),
+        }
+
+    selected_rule_ids = {
+        str(node.get("node_id"))
+        for node in nodes
+        if node.get("label") == "ConstraintRule"
+        and bucket_rule_stage(
+            str(node.get("properties", {}).get("rule_id", "")).strip() or str(node.get("node_id", "")).split(":", 1)[-1],
+            str(node.get("properties", {}).get("stage_hint", "")),
+        )
+        in allowed_stages
+    }
+
+    if not stage_key:
+        selected_rule_ids = {
+            str(node.get("node_id"))
+            for node in nodes
+            if node.get("label") == "ConstraintRule" and node.get("node_id")
+        }
+
+    adjacency: dict[str, list[tuple[int, str]]] = defaultdict(list)
+    for index, rel in enumerate(relationships):
+        start = str(rel.get("start"))
+        end = str(rel.get("end"))
+        adjacency[start].append((index, end))
+        adjacency[end].append((index, start))
+
+    visited_nodes = set(selected_rule_ids)
+    visited_relationship_indexes: set[int] = set()
+    frontier = set(selected_rule_ids)
+
+    for _ in range(max_hops):
+        next_frontier: set[str] = set()
+        for node_id in frontier:
+            for rel_index, neighbor in adjacency.get(node_id, []):
+                neighbor_node = node_map.get(neighbor, {})
+                if neighbor_node.get("label") == "ConstraintRule" and neighbor not in selected_rule_ids:
+                    continue
+                visited_relationship_indexes.add(rel_index)
+                if neighbor not in visited_nodes:
+                    visited_nodes.add(neighbor)
+                    next_frontier.add(neighbor)
+        frontier = next_frontier
+        if not frontier:
+            break
+
+    selected_relationships = [relationships[index] for index in sorted(visited_relationship_indexes)]
+    selected_nodes = [node_map[node_id] for node_id in visited_nodes if node_id in node_map]
+    node_type_counts: dict[str, int] = defaultdict(int)
+    for node in selected_nodes:
+        node_type_counts[str(node.get("label", "Unknown"))] += 1
+
+    label = "全部阶段" if not stage_key else stage_display_name(stage_key)
+    return {
+        "graph_id": f"{graph.get('graph_id', 'constraint_graph')}::stage:{stage_key or 'all'}::{('cum' if cumulative else 'exact')}",
+        "description": "Stage hypergraph subgraph derived from the full constraint graph.",
+        "node_count": len(selected_nodes),
+        "relationship_count": len(selected_relationships),
+        "stage_key": stage_key or "all",
+        "stage_label": label,
+        "stage_scope": stage_scope(stage_key, cumulative=cumulative) if stage_key else list(stage_scope(None)),
+        "nodes": selected_nodes,
+        "relationships": selected_relationships,
+        "rule_count": len(selected_rule_ids),
+        "node_type_counts": dict(sorted(node_type_counts.items())),
+        "source_graph_id": graph.get("graph_id", "constraint_graph"),
+    }

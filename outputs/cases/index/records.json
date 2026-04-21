@@ -278,7 +278,7 @@
       "start_char": 0,
       "end_char": 82,
       "doc_type": "docx",
-      "source_path": "C:\\Users\\Y1302\\AppData\\Local\\Temp\\pytest-of-Y1302\\pytest-58\\test_ingest_creates_pages_and_0\\cases\\case2.docx"
+      "source_path": "C:\\Users\\Y1302\\AppData\\Local\\Temp\\pytest-of-Y1302\\pytest-73\\test_ingest_creates_pages_and_0\\cases\\case2.docx"
     },
     "vector": [
       0.0,
@@ -549,7 +549,7 @@
       "start_char": 0,
       "end_char": 60,
       "doc_type": "pptx",
-      "source_path": "C:\\Users\\Y1302\\AppData\\Local\\Temp\\pytest-of-Y1302\\pytest-58\\test_ingest_creates_pages_and_0\\cases\\case3.pptx"
+      "source_path": "C:\\Users\\Y1302\\AppData\\Local\\Temp\\pytest-of-Y1302\\pytest-73\\test_ingest_creates_pages_and_0\\cases\\case3.pptx"
     },
     "vector": [
       0.0,

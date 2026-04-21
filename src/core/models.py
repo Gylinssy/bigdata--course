@@ -90,6 +90,37 @@ class RubricScore(BaseModel):
     evidence: list[EvidenceItem] = Field(default_factory=list)
 
 
+class ScoreDimension(BaseModel):
+    rubric_id: str
+    name: str
+    score: float = Field(ge=0.0, le=5.0)
+    weight: float = Field(default=0.0, ge=0.0)
+    weighted_score: float = Field(default=0.0, ge=0.0)
+    score_band: str = "stable"
+    rationale: str = ""
+    evidence_count: int = Field(default=0, ge=0)
+    missing_evidence: list[str] = Field(default_factory=list)
+    fix_24h: str = ""
+    fix_72h: str = ""
+
+
+class UnifiedScoreOutput(BaseModel):
+    template_name: str
+    average_score: float = Field(ge=0.0, le=5.0)
+    weighted_final_score: float = Field(ge=0.0, le=5.0)
+    score_band: str
+    stage_key: str
+    stage_label: str
+    evidence_coverage_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    strongest_dimensions: list[str] = Field(default_factory=list)
+    weakest_dimensions: list[str] = Field(default_factory=list)
+    low_score_dimension_count: int = Field(default=0, ge=0)
+    risk_rule_count: int = Field(default=0, ge=0)
+    high_risk_rule_count: int = Field(default=0, ge=0)
+    dimensions: list[ScoreDimension] = Field(default_factory=list)
+    summary: str = ""
+
+
 class StructuredClaim(BaseModel):
     field: str
     statement: str
@@ -133,6 +164,7 @@ class CoachOutput(BaseModel):
     structured_diagnosis: StructuredDiagnosis | None = None
     constraint_validation: ConstraintValidationReport | None = None
     rendered_views: RenderedViews | None = None
+    score_summary: UnifiedScoreOutput | None = None
     markdown_report: str | None = None
 
 
@@ -168,6 +200,12 @@ class LearningMode(str, Enum):
     ANTI_GHOSTWRITING = "anti_ghostwriting"
     EMOTIONAL_REDIRECT = "emotional_redirect"
     CLARIFICATION = "clarification"
+
+
+class FinanceHealth(str, Enum):
+    STRONG = "strong"
+    CONDITIONAL = "conditional"
+    RISKY = "risky"
 
 
 class LearningConstraintViolation(BaseModel):
@@ -257,7 +295,67 @@ class IngestRequest(BaseModel):
 
 class TeacherDashboard(BaseModel):
     total_projects: int
+    average_score: float = 0.0
     top_rule_triggers: dict[str, int]
     high_risk_projects: list[str]
     field_missing_hotspots: dict[str, int]
+    score_distribution: dict[str, int] = Field(default_factory=dict)
+    stage_distribution: dict[str, int] = Field(default_factory=dict)
+    rubric_average_scores: dict[str, float] = Field(default_factory=dict)
+    low_score_hotspots: dict[str, int] = Field(default_factory=dict)
+    weakest_dimensions: list[str] = Field(default_factory=list)
+    stage_insights: list[dict[str, Any]] = Field(default_factory=list)
+    project_summaries: list[dict[str, Any]] = Field(default_factory=list)
     intervention_suggestions: list[str]
+
+
+class FinanceMetric(BaseModel):
+    key: str
+    name: str
+    value: float | None = None
+    display: str
+    note: str = ""
+
+
+class FinanceAnalysisOutput(BaseModel):
+    health: FinanceHealth
+    summary: str
+    commercialization_assessment: str
+    strongest_signal: str
+    biggest_risk: str
+    next_action: str
+    follow_up_question: str
+    strengths: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    metrics: list[FinanceMetric] = Field(default_factory=list)
+    context_project_id: str | None = None
+
+
+class FinanceAnalysisRequest(BaseModel):
+    user_id: str | None = None
+    project_id: str | None = None
+    include_project_context: bool = True
+    project_summary: str = ""
+    unit_price: float | None = None
+    unit_variable_cost: float | None = None
+    monthly_sales_volume: float | None = None
+    monthly_fixed_cost: float | None = None
+    monthly_marketing_cost: float | None = None
+    monthly_team_cost: float | None = None
+    monthly_other_cost: float | None = None
+    cash_on_hand: float | None = None
+    upfront_investment: float | None = None
+    new_customers_per_month: float | None = None
+    cac: float | None = None
+    average_orders_per_customer_per_year: float | None = None
+    customer_lifetime_months: float | None = None
+
+
+class FinanceAnalysisResponse(BaseModel):
+    reply: str
+    structured_output: FinanceAnalysisOutput
+    model: str
+    used_llm: bool
+    context_used: bool = False
+    context_project_id: str | None = None
