@@ -40,11 +40,38 @@ def inject_styles() -> None:
           padding-left: 1.1rem !important;
           padding-right: 1.1rem !important;
         }
-        [data-testid="stHeader"],
         [data-testid="stToolbar"],
         #MainMenu,
         footer {
           display: none !important;
+        }
+        [data-testid="stHeader"] {
+          background: transparent !important;
+          border: none !important;
+        }
+        [data-testid="stHeader"] button[aria-label*="sidebar" i],
+        [data-testid="stHeader"] button[title*="sidebar" i],
+        [data-testid="stHeader"] [data-testid*="Sidebar"] button {
+          position: fixed !important;
+          top: 0.8rem;
+          left: 0.8rem;
+          z-index: 1002 !important;
+          width: 42px !important;
+          height: 42px !important;
+          min-height: 42px !important;
+          padding: 0 !important;
+          border-radius: 999px !important;
+          border: 1px solid var(--line) !important;
+          background: rgba(255, 255, 255, 0.94) !important;
+          color: var(--text) !important;
+          box-shadow: 0 12px 28px rgba(17, 36, 58, 0.12) !important;
+        }
+        [data-testid="stHeader"] button[aria-label*="sidebar" i]:hover,
+        [data-testid="stHeader"] button[title*="sidebar" i]:hover,
+        [data-testid="stHeader"] [data-testid*="Sidebar"] button:hover {
+          background: #ffffff !important;
+          border-color: var(--line-strong) !important;
+          transform: translateY(-1px);
         }
         [data-testid="stSidebar"] > div {
           background:

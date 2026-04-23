@@ -13,6 +13,7 @@ from uuid import uuid4
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
@@ -49,6 +50,7 @@ from ui.auth import (  # noqa: E402
     SECTION_STUDENT,
     SECTION_TEACHER,
     authenticate,
+    bulk_import_users,
     current_user,
     ensure_authorized_section,
     init_auth_state,
@@ -309,6 +311,40 @@ def format_finance_input(value: float | None) -> str:
     if float(value).is_integer():
         return str(int(value))
     return f"{value:.2f}"
+
+
+def decode_user_import_file(uploaded_file) -> str:
+    raw_bytes = uploaded_file.getvalue()
+    for encoding in ("utf-8-sig", "utf-8", "gb18030", "gbk", "utf-16"):
+        try:
+            return raw_bytes.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw_bytes.decode("utf-8", errors="ignore")
+
+
+def sync_current_session_user() -> None:
+    active_user = current_user(st.session_state)
+    if not active_user:
+        return
+
+    latest_user = next(
+        (item for item in st.session_state.get("auth_users", []) if item["username"] == active_user["username"]),
+        None,
+    )
+    if latest_user is None:
+        logout_user(st.session_state)
+        return
+
+    st.session_state["auth_user"] = {
+        "username": latest_user["username"],
+        "role": latest_user["role"],
+        "display_name": latest_user["display_name"],
+    }
+    st.session_state["active_section"] = ensure_authorized_section(
+        latest_user["role"],
+        st.session_state.get("active_section"),
+    )
 
 
 def log_unauthorized_attempt(role: str | None, requested: str | None, redirected: str | None) -> None:
@@ -830,6 +866,172 @@ def render_sidebar() -> None:
     if st.sidebar.button("退出登录", use_container_width=True, key="logout", type="secondary"):
         logout_user(st.session_state)
         st.rerun()
+
+
+def render_sidebar_toggle_control() -> None:
+    components.html(
+        """
+        <script>
+        (function() {
+          const parentWindow = window.parent;
+          const doc = parentWindow.document;
+          const buttonId = "codex-sidebar-toggle-button";
+          const getSidebar = () => doc.querySelector('[data-testid="stSidebar"]');
+          const isSidebarCollapsed = () => {
+            const sidebar = getSidebar();
+            return sidebar ? sidebar.getAttribute("aria-expanded") === "false" : true;
+          };
+
+          const triggerClick = target => {
+            if (!target) return false;
+            const eventTypes = ["pointerdown", "mousedown", "pointerup", "mouseup", "click"];
+            for (const type of eventTypes) {
+              try {
+                target.dispatchEvent(new MouseEvent(type, {
+                  view: parentWindow,
+                  bubbles: true,
+                  cancelable: true
+                }));
+              } catch (err) {}
+            }
+            try {
+              target.click();
+            } catch (err) {}
+            return true;
+          };
+
+          const findBySelectors = selectors => {
+            for (const selector of selectors) {
+              const node = doc.querySelector(selector);
+              if (node && node.id !== buttonId) {
+                return node;
+              }
+            }
+            return null;
+          };
+
+          const findNativeToggle = () => {
+            const preciseSelectors = isSidebarCollapsed()
+              ? [
+                  '[data-testid="stExpandSidebarButton"] button',
+                  '[data-testid="stExpandSidebarButton"]',
+                  '[data-testid="stHeader"] [data-testid="stExpandSidebarButton"] button',
+                  '[data-testid="stHeader"] [data-testid="stExpandSidebarButton"]'
+                ]
+              : [
+                  '[data-testid="stSidebarCollapseButton"] button',
+                  '[data-testid="stSidebarCollapseButton"]',
+                  '[data-testid="stSidebarHeader"] [data-testid="stSidebarCollapseButton"] button',
+                  '[data-testid="stSidebarHeader"] [data-testid="stSidebarCollapseButton"]'
+                ];
+            const preciseMatch = findBySelectors(preciseSelectors);
+            if (preciseMatch) return preciseMatch;
+
+            return findBySelectors([
+              'button[aria-label*="open sidebar" i]',
+              'button[aria-label*="close sidebar" i]',
+              'button[title*="open sidebar" i]',
+              'button[title*="close sidebar" i]',
+              'button[aria-label*="sidebar" i]',
+              'button[title*="sidebar" i]',
+              '[data-testid="stHeader"] button[kind="header"]'
+            ]);
+          };
+
+          const probeUnderlyingControl = button => {
+            if (!button) return null;
+            const previousPointerEvents = button.style.pointerEvents;
+            button.style.pointerEvents = "none";
+            const rect = button.getBoundingClientRect();
+            const target = doc.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            button.style.pointerEvents = previousPointerEvents;
+            if (!target || target.id === buttonId) return null;
+            return target.closest("button") || target;
+          };
+
+          const syncButtonState = button => {
+            if (!button) return;
+            const collapsed = isSidebarCollapsed();
+            button.innerHTML = collapsed ? "☰" : "×";
+            button.title = collapsed ? "展开侧边栏" : "收起侧边栏";
+            button.setAttribute("aria-label", button.title);
+          };
+
+          parentWindow.__codexToggleSidebar = () => {
+            const button = doc.getElementById(buttonId);
+            const nativeToggle = findNativeToggle() || probeUnderlyingControl(button);
+            if (nativeToggle) {
+              triggerClick(nativeToggle);
+              setTimeout(() => syncButtonState(button), 60);
+              return;
+            }
+            const sidebar = getSidebar();
+            if (sidebar) {
+              const nextExpanded = sidebar.getAttribute("aria-expanded") === "false";
+              sidebar.setAttribute("aria-expanded", nextExpanded ? "true" : "false");
+              syncButtonState(button);
+            }
+          };
+
+          let button = doc.getElementById(buttonId);
+          if (!button) {
+            button = doc.createElement("button");
+            button.id = buttonId;
+            button.type = "button";
+            Object.assign(button.style, {
+              position: "fixed",
+              top: "12px",
+              left: "12px",
+              width: "42px",
+              height: "42px",
+              borderRadius: "999px",
+              border: "1px solid rgba(22, 36, 56, 0.14)",
+              background: "rgba(255, 255, 255, 0.96)",
+              color: "#152238",
+              boxShadow: "0 12px 28px rgba(17, 36, 58, 0.14)",
+              zIndex: "2147483647",
+              cursor: "pointer",
+              fontSize: "22px",
+              lineHeight: "20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "auto",
+              userSelect: "none",
+              WebkitUserSelect: "none"
+            });
+            button.addEventListener("mouseenter", () => {
+              button.style.transform = "translateY(-1px)";
+              button.style.background = "#ffffff";
+            });
+            button.addEventListener("mouseleave", () => {
+              button.style.transform = "translateY(0)";
+              button.style.background = "rgba(255, 255, 255, 0.96)";
+            });
+            button.addEventListener("click", parentWindow.__codexToggleSidebar);
+            doc.body.appendChild(button);
+          } else {
+            button.onclick = parentWindow.__codexToggleSidebar;
+          }
+
+          syncButtonState(button);
+
+          if (!parentWindow.__codexSidebarObserver) {
+            const observer = new MutationObserver(() => {
+              const currentButton = doc.getElementById(buttonId);
+              if (currentButton) {
+                syncButtonState(currentButton);
+              }
+            });
+            observer.observe(doc.body, { attributes: true, subtree: true, attributeFilter: ["aria-expanded"] });
+            parentWindow.__codexSidebarObserver = observer;
+          }
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 
 def render_status_panel() -> None:
@@ -1862,11 +2064,77 @@ def render_admin_page() -> None:
 
     user_tab, monitor_tab, guard_tab = st.tabs(["用户与角色", "全局监控", "越权拦截"])
     with user_tab:
+        role_labels = {"student": "学生", "teacher": "教师", "admin": "管理员"}
+
+        st.markdown('<div class="surface-card">', unsafe_allow_html=True)
+        st.markdown('<div class="surface-title">批量导入账号</div>', unsafe_allow_html=True)
+        st.caption("支持上传 `.csv` 或直接粘贴 CSV 内容。必填字段：`username,password,role`，可选字段：`display_name`。")
+        st.caption("也支持中文表头：`用户名,密码,角色,显示名称`。角色支持 `student / teacher / admin`。")
+        st.caption("如果不写表头，默认按 `username,password,role,display_name` 顺序解析。")
+        st.code(
+            "username,password,role,display_name\n"
+            "student01,secret123,student,张同学\n"
+            "teacher01,secret123,teacher,李老师",
+            language="csv",
+        )
+
+        uploaded_user_file = st.file_uploader("上传用户 CSV", type=["csv"], key="admin_user_import_file")
+        pasted_csv = st.text_area(
+            "或直接粘贴 CSV 内容",
+            height=160,
+            key="admin_user_import_text",
+            placeholder="username,password,role,display_name\nstudent01,secret123,student,张同学",
+        )
+        overwrite_existing = st.checkbox("覆盖同名账号", value=False, key="admin_user_import_overwrite")
+
+        if st.button("执行批量导入", use_container_width=True, type="primary", key="admin_user_import_submit"):
+            raw_text = pasted_csv.strip()
+            if not raw_text and uploaded_user_file is not None:
+                raw_text = decode_user_import_file(uploaded_user_file)
+
+            if not raw_text.strip():
+                st.warning("请先上传 CSV 文件或粘贴导入内容。")
+            else:
+                result = bulk_import_users(
+                    st.session_state,
+                    raw_text,
+                    overwrite_existing=overwrite_existing,
+                )
+                if result["ok"]:
+                    sync_current_session_user()
+                    st.success(result["message"])
+                else:
+                    st.warning(result["message"])
+
+                changed_rows = [
+                    {"结果": "新增", "用户名": item["username"], "角色": item["role"], "显示名": item["display_name"]}
+                    for item in result["created_users"]
+                ] + [
+                    {"结果": "覆盖", "用户名": item["username"], "角色": item["role"], "显示名": item["display_name"]}
+                    for item in result["updated_users"]
+                ]
+                if changed_rows:
+                    st.markdown("**导入成功记录**")
+                    st.dataframe(changed_rows, use_container_width=True, hide_index=True)
+                if result["skipped_rows"]:
+                    st.markdown("**跳过记录**")
+                    st.dataframe(result["skipped_rows"], use_container_width=True, hide_index=True)
+                if result["errors"]:
+                    st.markdown("**失败记录**")
+                    st.dataframe(result["errors"], use_container_width=True, hide_index=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        users = st.session_state.get("auth_users", [])
         st.markdown('<div class="surface-card">', unsafe_allow_html=True)
         st.markdown('<div class="surface-title">账号列表</div>', unsafe_allow_html=True)
+        st.caption(f"当前共 {len(users)} 个账号。")
         st.dataframe(
             [
-                {"用户名": item["username"], "角色": item["role"], "显示名": item["display_name"]}
+                {
+                    "用户名": item["username"],
+                    "角色": role_labels.get(item["role"], item["role"]),
+                    "显示名": item["display_name"],
+                }
                 for item in users
             ],
             use_container_width=True,
@@ -1877,17 +2145,18 @@ def render_admin_page() -> None:
         if usernames:
             pick_col, role_col, action_col = st.columns([1.4, 1.2, 1])
             selected_username = pick_col.selectbox("选择用户", usernames, key="admin_pick_user")
-            selected_role = role_col.selectbox("目标角色", ["student", "teacher", "admin"], key="admin_pick_role")
+            selected_role = role_col.selectbox(
+                "目标角色",
+                ["student", "teacher", "admin"],
+                key="admin_pick_role",
+                format_func=lambda item: role_labels[item],
+            )
             if action_col.button("更新角色", use_container_width=True, key="admin_update_role", type="primary"):
                 for item in users:
                     if item["username"] == selected_username:
                         item["role"] = selected_role
                 st.session_state["auth_users"] = users
-                current = current_user(st.session_state)
-                if current and current["username"] == selected_username:
-                    current["role"] = selected_role
-                    st.session_state["auth_user"] = current
-                    st.session_state["active_section"] = ensure_authorized_section(current["role"], st.session_state.get("active_section"))
+                sync_current_session_user()
                 st.success("角色已更新。")
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -2131,6 +2400,7 @@ def main() -> None:
         log_unauthorized_attempt(role, requested_section, resolved_section)
     st.session_state["active_section"] = resolved_section
     render_sidebar()
+    render_sidebar_toggle_control()
 
     section = st.session_state["active_section"]
     if section == SECTION_STUDENT:
